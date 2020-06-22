@@ -145,8 +145,10 @@ github.com/open-cluster-management/api/client/cluster/informers/externalversions
 github.com/open-cluster-management/api/client/cluster/informers/externalversions/internalinterfaces
 github.com/open-cluster-management/api/client/cluster/listers/cluster/v1
 github.com/open-cluster-management/api/cluster/v1
-# github.com/openshift/api v0.0.0-20200326160804-ecb9283fe820
+github.com/open-cluster-management/api/work/v1
+# github.com/openshift/api v0.0.0-20200619200343-6cafd5cd116b => github.com/deads2k/api v0.0.0-20200624190755-4d69463c94a5
 github.com/openshift/api
+github.com/openshift/api/apiserver/v1
 github.com/openshift/api/apps
 github.com/openshift/api/apps/v1
 github.com/openshift/api/authorization
@@ -173,6 +175,8 @@ github.com/openshift/api/openshiftcontrolplane/v1
 github.com/openshift/api/operator
 github.com/openshift/api/operator/v1
 github.com/openshift/api/operator/v1alpha1
+github.com/openshift/api/operatorcontrolplane
+github.com/openshift/api/operatorcontrolplane/v1alpha1
 github.com/openshift/api/osin
 github.com/openshift/api/osin/v1
 github.com/openshift/api/pkg/serialization
@@ -201,6 +205,15 @@ github.com/openshift/build-machinery-go/make/targets/golang
 github.com/openshift/build-machinery-go/make/targets/openshift
 github.com/openshift/build-machinery-go/make/targets/openshift/operator
 github.com/openshift/build-machinery-go/scripts
+# github.com/openshift/client-go v0.0.0-20200608144219-584632b8fc73 => github.com/deads2k/client-go-1 v0.0.0-20200622153507-d55c15fb77ea
+github.com/openshift/client-go/apiserver/clientset/versioned
+github.com/openshift/client-go/apiserver/clientset/versioned/scheme
+github.com/openshift/client-go/apiserver/clientset/versioned/typed/apiserver/v1
+github.com/openshift/client-go/apiserver/informers/externalversions
+github.com/openshift/client-go/apiserver/informers/externalversions/apiserver
+github.com/openshift/client-go/apiserver/informers/externalversions/apiserver/v1
+github.com/openshift/client-go/apiserver/informers/externalversions/internalinterfaces
+github.com/openshift/client-go/apiserver/listers/apiserver/v1
 # github.com/openshift/generic-admission-server v1.14.1-0.20200514123932-ccc9079d8bdb
 github.com/openshift/generic-admission-server/pkg/apiserver
 github.com/openshift/generic-admission-server/pkg/cmd/server

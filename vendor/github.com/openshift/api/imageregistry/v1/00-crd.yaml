@@ -692,6 +692,7 @@ spec:
                       description: maxWaitInQueue sets the maximum time a request
                         can wait in the queue before being rejected.
                       type: string
+                      format: duration
                 write:
                   description: write defines limits for image registry's writes.
                   type: object
@@ -708,6 +709,7 @@ spec:
                       description: maxWaitInQueue sets the maximum time a request
                         can wait in the queue before being rejected.
                       type: string
+                      format: duration
             resources:
               description: resources defines the resource requests+limits for the
                 registry pod.
@@ -839,6 +841,7 @@ spec:
                           description: duration is the duration of the Cloudfront
                             session.
                           type: string
+                          format: duration
                         keypairID:
                           description: keypairID is key pair ID provided by AWS.
                           type: string
@@ -878,6 +881,11 @@ spec:
                         storage services. Optional, defaults based on the Region that
                         is provided.
                       type: string
+                    virtualHostedStyle:
+                      description: virtualHostedStyle enables using S3 virtual hosted
+                        style bucket paths with a custom RegionEndpoint Optional,
+                        defaults to false.
+                      type: boolean
                 swift:
                   description: swift represents configuration that uses OpenStack
                     Object Storage.
@@ -1106,6 +1114,7 @@ spec:
                           description: duration is the duration of the Cloudfront
                             session.
                           type: string
+                          format: duration
                         keypairID:
                           description: keypairID is key pair ID provided by AWS.
                           type: string
@@ -1145,6 +1154,11 @@ spec:
                         storage services. Optional, defaults based on the Region that
                         is provided.
                       type: string
+                    virtualHostedStyle:
+                      description: virtualHostedStyle enables using S3 virtual hosted
+                        style bucket paths with a custom RegionEndpoint Optional,
+                        defaults to false.
+                      type: boolean
                 swift:
                   description: swift represents configuration that uses OpenStack
                     Object Storage.

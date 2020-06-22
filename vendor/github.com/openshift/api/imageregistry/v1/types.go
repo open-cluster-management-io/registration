@@ -133,6 +133,7 @@ type ImageRegistryConfigStorageS3CloudFront struct {
 	KeypairID string `json:"keypairID" protobuf:"bytes,3,opt,name=keypairID"`
 	// duration is the duration of the Cloudfront session.
 	// +optional
+	// +kubebuilder:validation:Format=duration
 	Duration metav1.Duration `json:"duration,omitempty" protobuf:"bytes,4,opt,name=duration"`
 }
 
@@ -171,6 +172,11 @@ type ImageRegistryConfigStorageS3 struct {
 	// registry.
 	// +optional
 	CloudFront *ImageRegistryConfigStorageS3CloudFront `json:"cloudFront,omitempty" protobuf:"bytes,6,opt,name=cloudFront"`
+	// virtualHostedStyle enables using S3 virtual hosted style bucket paths with
+	// a custom RegionEndpoint
+	// Optional, defaults to false.
+	// +optional
+	VirtualHostedStyle bool `json:"virtualHostedStyle" protobuf:"varint,7,opt,name=virtualHostedStyle"`
 }
 
 // ImageRegistryConfigStorageGCS holds GCS configuration.
@@ -296,6 +302,7 @@ type ImageRegistryConfigRequestsLimits struct {
 	// maxWaitInQueue sets the maximum time a request can wait in the queue
 	// before being rejected.
 	// +optional
+	// +kubebuilder:validation:Format=duration
 	MaxWaitInQueue metav1.Duration `json:"maxWaitInQueue,omitempty" protobuf:"bytes,3,opt,name=maxWaitInQueue"`
 }
 

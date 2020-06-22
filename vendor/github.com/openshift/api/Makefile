@@ -18,6 +18,7 @@ GO_LD_FLAGS:=
 # $2 - apis
 # $3 - manifests
 # $4 - output
+$(call add-crd-gen,apiserver,./apiserver/v1,./apiserver/v1,./apiserver/v1)
 $(call add-crd-gen,authorization,./authorization/v1,./authorization/v1,./authorization/v1)
 $(call add-crd-gen,config,./config/v1,./config/v1,./config/v1)
 $(call add-crd-gen,console,./console/v1,./console/v1,./console/v1)
@@ -29,6 +30,7 @@ $(call add-crd-gen,quota,./quota/v1,./quota/v1,./quota/v1)
 $(call add-crd-gen,samples,./samples/v1,./samples/v1,./samples/v1)
 $(call add-crd-gen,security,./security/v1,./security/v1,./security/v1)
 $(call add-crd-gen,network,./network/v1,./network/v1,./network/v1)
+$(call add-crd-gen,operatorcontrolplane,./operatorcontrolplane/v1alpha1,./operatorcontrolplane/v1alpha1,./operatorcontrolplane/v1alpha1)
 
 RUNTIME ?= podman
 RUNTIME_IMAGE_NAME ?= openshift-api-generator
@@ -38,6 +40,7 @@ verify-scripts:
 	bash -x hack/verify-protobuf.sh
 	bash -x hack/verify-swagger-docs.sh
 	bash -x hack/verify-crds.sh
+	bash -x hack/verify-types.sh
 .PHONY: verify-scripts
 verify: verify-scripts verify-codegen-crds
 

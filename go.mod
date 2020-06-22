@@ -7,7 +7,9 @@ require (
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
 	github.com/open-cluster-management/api v0.0.0-20200602195039-a516cac2e038
+	github.com/openshift/api v0.0.0-20200619200343-6cafd5cd116b
 	github.com/openshift/build-machinery-go v0.0.0-20200424080330-082bf86082cc
+	github.com/openshift/client-go v0.0.0-20200608144219-584632b8fc73
 	github.com/openshift/generic-admission-server v1.14.1-0.20200514123932-ccc9079d8bdb
 	github.com/openshift/library-go v0.0.0-20200401114229-ffab8c6e83a9
 	github.com/spf13/cobra v0.0.5
@@ -22,3 +24,7 @@ require (
 	k8s.io/utils v0.0.0-20200327001022-6496210b90e8
 	sigs.k8s.io/controller-runtime v0.6.0
 )
+
+replace github.com/openshift/api => github.com/deads2k/api v0.0.0-20200624190755-4d69463c94a5
+
+replace github.com/openshift/client-go => github.com/deads2k/client-go-1 v0.0.0-20200622153507-d55c15fb77ea
