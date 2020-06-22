@@ -1,8 +1,10 @@
 # Binaries for programs and plugins
 registration
+/criticalresource
 dev-kubeconfig
 e2e-kubeconfig
 integration.test
+kustomization.yaml.tmp
 e2e.test
 *.exe
 *.dll

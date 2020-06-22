@@ -36,6 +36,12 @@ clean:
 	$(RM) ./registration
 .PHONY: clean
 
+deploy-criticalresource: ensure-kustomize
+	cp deploy/criticalresource/kustomization.yaml deploy/criticalresource/kustomization.yaml.tmp
+	cd deploy/criticalresource && ../../$(KUSTOMIZE) edit set image quay.io/open-cluster-management/registration:latest=$(IMAGE_NAME)
+	$(KUSTOMIZE) build deploy/criticalresource | $(KUBECTL) apply -f -
+	mv deploy/criticalresource/kustomization.yaml.tmp deploy/criticalresource/kustomization.yaml
+
 deploy-hub: ensure-kustomize
 	cp deploy/hub/kustomization.yaml deploy/hub/kustomization.yaml.tmp
 	cd deploy/hub && ../../$(KUSTOMIZE) edit set image quay.io/open-cluster-management/registration:latest=$(IMAGE_NAME)

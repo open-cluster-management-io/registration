@@ -1,0 +1,6 @@
+apiVersion: apiserver.openshift.io/v1
+kind: FinalizerResource
+metadata:
+  name: openshift-criticalresource
+  finalizers:
+    - cool-finalizer

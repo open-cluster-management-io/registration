@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: criticalresource-admissionwebhook
+  labels:
+    app: criticalresource-admissionwebhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: criticalresource-admissionwebhook
+  template:
+    metadata:
+      labels:
+        app: criticalresource-admissionwebhook
+    spec:
+      serviceAccountName: criticalresource-admissionwebhook-sa
+      containers:
+      - name: criticalresource-admissionwebhook
+        image: quay.io/open-cluster-management/registration:latest
+        imagePullPolicy: IfNotPresent
+        args:
+          - "/criticalresource"
+          - "admissionwebhook"
+          - "--cert-dir=/tmp"
+          - "--secure-port=6443"

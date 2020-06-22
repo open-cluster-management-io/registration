@@ -1,0 +1,26 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: criticalresourcesadmissionvalidators.admission.apiserver.openshift.io
+webhooks:
+- name: criticalresourcesadmissionvalidators.admission.apiserver.openshift.io
+  failurePolicy: Fail
+  clientConfig:
+    service:
+      # reach the webhook via the registered aggregated API
+      namespace: default
+      name: kubernetes
+      path: /apis/admission.apiserver.openshift.io/v1/criticalresourcesadmissionvalidators
+  rules:
+  - operations:
+    - DELETE
+    # TODO tighten this up before merge
+    apiGroups:
+    - "*"
+    apiVersions:
+    - "*"
+    resources:
+    - "*"
+  admissionReviewVersions: ["v1beta1"]
+  sideEffects: None
+  timeoutSeconds: 3

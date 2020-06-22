@@ -1,0 +1,16 @@
+apiVersion: apiserver.openshift.io/v1
+kind: CriticalResource
+metadata:
+  name: protect-deployment
+  namespace: openshift-criticalresource
+spec:
+  provider:
+    group: apps
+    resource: deployments
+    name: protected-deployment
+  criteria:
+    - type: Finalizer
+      finalizer:
+        group: apiserver.openshift.io
+        resource: finalizerresources
+        finalizerName: cool-finalizer

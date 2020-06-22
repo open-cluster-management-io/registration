@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: criticalresource-admissionwebhook
+spec:
+  selector:
+    app: criticalresource-admissionwebhook
+  ports:
+  - port: 443
+    targetPort: 6443

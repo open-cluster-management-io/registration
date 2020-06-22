@@ -1,0 +1,13 @@
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1.admission.apiserver.openshift.io
+spec:
+  group: admission.apiserver.openshift.io
+  version: v1
+  service:
+    name: criticalresource-admissionwebhook
+    namespace: openshift-criticalresource
+  insecureSkipTLSVerify: true
+  groupPriorityMinimum: 10000
+  versionPriority: 20
