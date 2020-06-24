@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
+	workv1 "github.com/open-cluster-management/api/work/v1"
 	apiserverv1 "github.com/openshift/api/apiserver/v1"
 	apiserverclient "github.com/openshift/client-go/apiserver/clientset/versioned"
 	apiserverinformers "github.com/openshift/client-go/apiserver/informers/externalversions"
@@ -98,7 +99,9 @@ func (a *CriticalResourceAdmissionWebhook) validateDelete(ctx context.Context, r
 		return a.validateCriticalResourceDelete(ctx, request)
 	case corev1.Resource("namespace"):
 		return a.validateNamespaceDelete(ctx, request)
-	case appsv1.Resource("deployments"):
+	case appsv1.Resource("deployments"),
+		// TODO add the clusterdeployment thing here
+		workv1.Resource("manifestworks"):
 		return a.validateProviderDelete(ctx, gr, request)
 	default:
 		return &admissionv1beta1.AdmissionResponse{Allowed: true}
@@ -199,9 +202,9 @@ func (a *CriticalResourceAdmissionWebhook) validateCriticalResourceDelete(ctx co
 }
 
 func (a *CriticalResourceAdmissionWebhook) validateProviderRemoved(ctx context.Context, criticalResource *apiserverv1.CriticalResource) error {
-	// TODO fix API to include version
 	providerGVR := schema.GroupVersionResource{
-		Group:    criticalResource.Spec.Provider.GroupResource.Group,
+		Group: criticalResource.Spec.Provider.GroupResource.Group,
+		// TODO look up version from discovery
 		Version:  "v1",
 		Resource: criticalResource.Spec.Provider.GroupResource.Resource,
 	}
@@ -243,9 +246,9 @@ func (a *CriticalResourceAdmissionWebhook) validateCriteriaMet(ctx context.Conte
 }
 
 func (a *CriticalResourceAdmissionWebhook) validateFinalizerCriteriaMet(ctx context.Context, criteria apiserverv1.CriticalResourceCriteria) error {
-	// TODO fix API to include version
 	gvr := schema.GroupVersionResource{
-		Group:    criteria.Finalizer.Group,
+		Group: criteria.Finalizer.Group,
+		// TODO look up version from discovery
 		Version:  "v1",
 		Resource: criteria.Finalizer.Resource,
 	}
@@ -270,13 +273,13 @@ func (a *CriticalResourceAdmissionWebhook) validateFinalizerCriteriaMet(ctx cont
 }
 
 func (a *CriticalResourceAdmissionWebhook) validateSpecificResourceCriteriaMet(ctx context.Context, namespace string, criteria apiserverv1.CriticalResourceCriteria) error {
-	// TODO fix API to include version
 	gvr := schema.GroupVersionResource{
-		Group:    criteria.SpecificResource.Group,
+		Group: criteria.SpecificResource.Group,
+		// TODO look up version from discovery
 		Version:  "v1",
 		Resource: criteria.SpecificResource.Resource,
 	}
-	_, err := a.dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, criteria.SpecificResource.Name, metav1.GetOptions{})
+	_, err := a.dynamicClient.Resource(gvr).Namespace(criteria.SpecificResource.Namespace).Get(ctx, criteria.SpecificResource.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		return nil
 	}
