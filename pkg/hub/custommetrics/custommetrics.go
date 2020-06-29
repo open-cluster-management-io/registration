@@ -36,10 +36,10 @@ var managedClusterMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 
 func fetchTestData() {
 
-	// Test - will be removed
+	//TODO: Test - will be removed
 	managedClusterMetric.WithLabelValues("GET", "/test", "2.0.0").Set(2.354)
 
-	klog.V(1).Infof("Getting data for Managed Clusters")
+	klog.Infof("Getting data for Managed Clusters")
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -51,10 +51,14 @@ func fetchTestData() {
 		klog.Fatalf("Error received creating client %v \n", errClient)
 	}
 
+	//TODO: rewrite the for-loop and sleep
+	//Can we use WATCH
+	//Need to see minimal role/permission needed for accessing API
+	//it is set to cluster-admin now
 	for {
 		mcList, errCrd := dynClient.Resource(mcGVR).List(context.TODO(), metav1.ListOptions{})
 		if errCrd != nil {
-			fmt.Printf("Error getting CRD %v \n", errCrd)
+			klog.Infof("Error getting CRD %v \n", errCrd)
 		} else {
 			for _, mc := range mcList.Items {
 				/* 		replicas, found, err := unstructured.NestedInt64(d.Object, "spec", "replicas")
@@ -62,7 +66,10 @@ func fetchTestData() {
 				   			fmt.Printf("Replicas not found for deployment %s: error=%s", d.GetName(), err)
 				   			continue
 				   		} */
-				fmt.Printf("Managed Cluster details %s \n", mc.GetName())
+				klog.Infof("Managed Cluster details %s \n", mc.GetName())
+				//TODO:
+				//get the actual values as mentioned here:
+				//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
 				managedClusterMetric.WithLabelValues(mc.GetName(), "/test", "2.0.0").Set(1)
 			}
 		}
