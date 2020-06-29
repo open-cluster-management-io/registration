@@ -10,6 +10,7 @@ import (
 	clusterv1client "github.com/open-cluster-management/api/client/cluster/clientset/versioned"
 	clusterv1informers "github.com/open-cluster-management/api/client/cluster/informers/externalversions"
 	"github.com/open-cluster-management/registration/pkg/hub/csr"
+	"github.com/open-cluster-management/registration/pkg/hub/custommetrics"
 	"github.com/open-cluster-management/registration/pkg/hub/lease"
 	"github.com/open-cluster-management/registration/pkg/hub/managedcluster"
 
@@ -59,6 +60,10 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 	go managedClusterController.Run(ctx, 1)
 	go csrController.Run(ctx, 1)
 	go leaseController.Run(ctx, 1)
+
+	//Add Custom Metrics
+	//make sure its a go func call else it will block
+	go custommetrics.MetricStart(8890)
 
 	<-ctx.Done()
 	return nil
