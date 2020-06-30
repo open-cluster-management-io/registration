@@ -2,9 +2,9 @@ package custommetrics
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
-	"log"
 	"net/http"
 	"time"
 
@@ -12,10 +12,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 
 	clusterv1 "github.com/open-cluster-management/api/cluster/v1"
@@ -79,7 +82,7 @@ func getStaticData() {
 		panic(errCv.Error())
 	}
 	hubID = string(cv.Spec.ClusterID)
-	klog.Infof("hub id is " + hubID)
+	klog.Infof("Hub id of this ACM Server is " + hubID)
 
 }
 
@@ -90,39 +93,63 @@ func fetchTestData() {
 
 	klog.Infof("Getting data for Managed Clusters")
 
+	var stopper chan struct{}
+	informerRunning := false
+
 	dynClient, errClient := getDynClient()
 	if errClient != nil {
 		klog.Fatalf("Error received creating client %v \n", errClient)
 	}
-	//TODO: rewrite the for-loop and sleep
-	//Can we use WATCH
-	//Need to see minimal role/permission needed for accessing API
-	//it is set to cluster-reader now
-	for {
-		mcList, errCrd := dynClient.Resource(mcGVR).List(context.TODO(), metav1.ListOptions{})
-		if errCrd != nil {
-			klog.Infof("Error getting CRD %v \n", errCrd)
-		} else {
-			for _, mc := range mcList.Items {
-				/* 		replicas, found, err := unstructured.NestedInt64(d.Object, "spec", "replicas")
-				   		if err != nil || !found {
-				   			fmt.Printf("Replicas not found for deployment %s: error=%s", d.GetName(), err)
-				   			continue
-				   		} */
-				klog.Infof("Managed Cluster details %s \n", mc.GetName())
 
-				cluster := &clusterv1.ManagedCluster{}
-				err := runtime.DefaultUnstructuredConverter.FromUnstructured(mc.UnstructuredContent(), &cluster)
-				if err != nil {
-					klog.Fatalf("Error unmarshal managed cluster object%v \n", err)
-				}
+	dynamicFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynClient, 60*time.Second)
+	clusterInformer := dynamicFactory.ForResource(mcGVR).Informer()
 
-				//TODO:
-				//get the actual values as mentioned here:
-				//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
-				managedClusterMetric.WithLabelValues(cluster.Name, "cluster_id", "type", "version", cluster.GetLabels()["cloud"], hubID).Set(1)
+	clusterInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+
+			klog.Info("Adding Managed Clusters ####################")
+			j, err := json.Marshal(obj.(*unstructured.Unstructured))
+			if err != nil {
+				klog.Warning("Error on ManagedCluster marshal.")
 			}
+			managedCluster := clusterv1.ManagedCluster{}
+			err = json.Unmarshal(j, &managedCluster)
+			if err != nil {
+				klog.Warning("Error on ManagedCluster unmarshal.")
+
+			}
+
+			klog.Infof("Managed Cluster name %s \n", managedCluster.GetName())
+
+			/* cluster := &clusterv1.ManagedCluster{}
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(mc.UnstructuredContent(), &cluster)
+			if err != nil {
+				klog.Fatalf("Error unmarshal managed cluster object%v \n", err)
+			} */
+
+			//TODO:
+			//get the actual values as mentioned here:
+			//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
+			managedClusterMetric.WithLabelValues(managedCluster.GetName(), "cluster_id", "type", "version", managedCluster.GetLabels()["cloud"], hubID).Set(1)
+
+		},
+		UpdateFunc: func(prev interface{}, next interface{}) {
+			klog.Info("Updating Managed Clusters ####################")
+		},
+		DeleteFunc: func(obj interface{}) {
+			klog.Info("Deleting Managed Clusters ####################")
+		},
+	})
+
+	//Starting the informer
+	for {
+		if !informerRunning {
+			klog.Info("Starting cluster informer routine for cluster watch")
+			stopper = make(chan struct{})
+			informerRunning = true
+			go clusterInformer.Run(stopper)
 		}
+		//TODO: Check this setting
 		time.Sleep(60 * time.Second)
 	}
 
@@ -147,7 +174,6 @@ func MetricStart(port int32) {
 	http.Handle("/metrics", promhttp.HandlerFor(r, promhttp.HandlerOpts{}))
 
 	klog.Infof("Custom Metric Service started on port: " + fmt.Sprint(customMetricsPort))
-	log.Fatal(http.ListenAndServe(":"+fmt.Sprint(customMetricsPort), nil))
-	//klog.Fatalf(http.ListenAndServe(":"+fmt.Sprint(customMetricsPort), nil))
+	klog.Fatal(http.ListenAndServe(":"+fmt.Sprint(customMetricsPort), nil))
 
 }
