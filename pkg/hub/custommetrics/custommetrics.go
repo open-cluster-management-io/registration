@@ -8,14 +8,17 @@ import (
 	"net/http"
 	"time"
 
+	ocinfrav1 "github.com/openshift/api/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
+
+	clusterv1 "github.com/open-cluster-management/api/cluster/v1"
 )
 
 var (
@@ -27,6 +30,14 @@ var (
 		Version:  "v1",
 		Resource: "managedclusters",
 	}
+
+	cvGVR = schema.GroupVersionResource{
+		Group:    "config.openshift.io",
+		Version:  "v1",
+		Resource: "clusterversions",
+	}
+
+	hubID = ""
 )
 
 //cluster_id = OCP ID of the Cluster (need to resolve for eks, etc)
@@ -40,6 +51,38 @@ var managedClusterMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help: "Managed Cluster being managed by ACM Hub.",
 }, []string{"cluster_name", "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id"})
 
+func getDynClient() (dynamic.Interface, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	return dynamic.NewForConfig(config)
+}
+
+func getStaticData() {
+	dynClient, errClient := getDynClient()
+	if errClient != nil {
+		klog.Fatalf("Error received creating client %v \n", errClient)
+		panic(errClient.Error())
+	}
+
+	cvObj, errCv := dynClient.Resource(cvGVR).Get(context.TODO(), "version", metav1.GetOptions{})
+	if errCv != nil {
+		klog.Fatalf("Error getting cluster version %v \n", errClient)
+		panic(errCv.Error())
+	}
+	cv := &ocinfrav1.ClusterVersion{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(cvObj.UnstructuredContent(), &cv)
+	if err != nil {
+		klog.Fatalf("Error unmarshal cluster version object%v \n", errClient)
+		panic(errCv.Error())
+	}
+	hubID = string(cv.Spec.ClusterID)
+	klog.Infof("hub id is " + hubID)
+
+}
+
 func fetchTestData() {
 
 	//TODO: Test - will be removed
@@ -47,16 +90,10 @@ func fetchTestData() {
 
 	klog.Infof("Getting data for Managed Clusters")
 
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		panic(err.Error())
-	}
-
-	dynClient, errClient := dynamic.NewForConfig(config)
+	dynClient, errClient := getDynClient()
 	if errClient != nil {
 		klog.Fatalf("Error received creating client %v \n", errClient)
 	}
-
 	//TODO: rewrite the for-loop and sleep
 	//Can we use WATCH
 	//Need to see minimal role/permission needed for accessing API
@@ -74,10 +111,16 @@ func fetchTestData() {
 				   		} */
 				klog.Infof("Managed Cluster details %s \n", mc.GetName())
 
+				cluster := &clusterv1.ManagedCluster{}
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(mc.UnstructuredContent(), &cluster)
+				if err != nil {
+					klog.Fatalf("Error unmarshal managed cluster object%v \n", err)
+				}
+
 				//TODO:
 				//get the actual values as mentioned here:
 				//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
-				managedClusterMetric.WithLabelValues(mc.GetName(), "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id").Set(1)
+				managedClusterMetric.WithLabelValues(cluster.Name, "cluster_id", "type", "version", cluster.GetLabels()["cloud"], hubID).Set(1)
 			}
 		}
 		time.Sleep(60 * time.Second)
@@ -91,6 +134,8 @@ func MetricStart(port int32) {
 	//registering the metrics to a custom registry
 	r := prometheus.NewRegistry()
 	r.MustRegister(managedClusterMetric)
+
+	getStaticData()
 
 	go fetchTestData()
 
