@@ -79,6 +79,7 @@ func getStaticData() {
 		panic(errCv.Error())
 	}
 	hubID = string(cv.Spec.ClusterID)
+	klog.Infof("hub id is " + hubID)
 
 }
 
