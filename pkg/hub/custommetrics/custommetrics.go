@@ -29,15 +29,21 @@ var (
 	}
 )
 
+//cluster_id = OCP ID of the Cluster (need to resolve for eks, etc)
+//type = K8s Distribution, e.g. OCP, EKS, etc
+//version = Distribution version
+//cluster_infrastructure_provider = value "Type" from cluster_infrastructure_provider
+//hub_id = cluster_id of hub server
+//cluster_name =User Display Name of Cluster (defaults to Id if not provided)
 var managedClusterMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Name: "a_managed_cluster",
 	Help: "Managed Cluster being managed by ACM Hub.",
-}, []string{"name", "route", "snapshot"})
+}, []string{"cluster_name", "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id"})
 
 func fetchTestData() {
 
 	//TODO: Test - will be removed
-	managedClusterMetric.WithLabelValues("GET", "/test", "2.0.0").Set(2.354)
+	managedClusterMetric.WithLabelValues("cluster_name", "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id").Set(2.354)
 
 	klog.Infof("Getting data for Managed Clusters")
 
@@ -54,7 +60,7 @@ func fetchTestData() {
 	//TODO: rewrite the for-loop and sleep
 	//Can we use WATCH
 	//Need to see minimal role/permission needed for accessing API
-	//it is set to cluster-admin now
+	//it is set to cluster-reader now
 	for {
 		mcList, errCrd := dynClient.Resource(mcGVR).List(context.TODO(), metav1.ListOptions{})
 		if errCrd != nil {
@@ -67,10 +73,11 @@ func fetchTestData() {
 				   			continue
 				   		} */
 				klog.Infof("Managed Cluster details %s \n", mc.GetName())
+
 				//TODO:
 				//get the actual values as mentioned here:
 				//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
-				managedClusterMetric.WithLabelValues(mc.GetName(), "/test", "2.0.0").Set(1)
+				managedClusterMetric.WithLabelValues(mc.GetName(), "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id").Set(1)
 			}
 		}
 		time.Sleep(60 * time.Second)
