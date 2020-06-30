@@ -119,7 +119,7 @@ func fetchTestData() {
 
 			}
 
-			klog.Infof("Managed Cluster name %s \n", managedCluster.GetName())
+			klog.Infof("Managed Cluster name being added: %s \n", managedCluster.GetName())
 
 			/* cluster := &clusterv1.ManagedCluster{}
 			err := runtime.DefaultUnstructuredConverter.FromUnstructured(mc.UnstructuredContent(), &cluster)
@@ -138,6 +138,24 @@ func fetchTestData() {
 		},
 		DeleteFunc: func(obj interface{}) {
 			klog.Info("Deleting Managed Clusters ####################")
+
+			j, err := json.Marshal(obj.(*unstructured.Unstructured))
+			if err != nil {
+				klog.Warning("Error on ManagedCluster marshal.")
+			}
+			managedCluster := clusterv1.ManagedCluster{}
+			err = json.Unmarshal(j, &managedCluster)
+			if err != nil {
+				klog.Warning("Error on ManagedCluster unmarshal.")
+			}
+
+			klog.Infof("Managed Cluster name being removed: %s \n", managedCluster.GetName())
+
+			//TODO:
+			//get the actual values as mentioned here:
+			//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
+			managedClusterMetric.WithLabelValues(managedCluster.GetName(), "cluster_id", "type", "version", managedCluster.GetLabels()["cloud"], hubID).Set(0)
+
 		},
 	})
 
