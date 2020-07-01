@@ -63,22 +63,17 @@ func getDynClient() (dynamic.Interface, error) {
 	return dynamic.NewForConfig(config)
 }
 
-func getStaticData() {
-	dynClient, errClient := getDynClient()
-	if errClient != nil {
-		klog.Fatalf("Error received creating client %v \n", errClient)
-		panic(errClient.Error())
-	}
+func getStaticData(c dynamic.Interface) {
 
-	cvObj, errCv := dynClient.Resource(cvGVR).Get(context.TODO(), "version", metav1.GetOptions{})
+	cvObj, errCv := c.Resource(cvGVR).Get(context.TODO(), "version", metav1.GetOptions{})
 	if errCv != nil {
-		klog.Fatalf("Error getting cluster version %v \n", errClient)
+		klog.Fatalf("Error getting cluster version %v \n", errCv)
 		panic(errCv.Error())
 	}
 	cv := &ocinfrav1.ClusterVersion{}
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(cvObj.UnstructuredContent(), &cv)
 	if err != nil {
-		klog.Fatalf("Error unmarshal cluster version object%v \n", errClient)
+		klog.Fatalf("Error unmarshal cluster version object%v \n", err)
 		panic(errCv.Error())
 	}
 	hubID = string(cv.Spec.ClusterID)
@@ -86,7 +81,56 @@ func getStaticData() {
 
 }
 
-func fetchTestData() {
+func addCluster(obj interface{}) {
+	klog.Info("Adding Managed Clusters ####################")
+	j, err := json.Marshal(obj.(*unstructured.Unstructured))
+	if err != nil {
+		klog.Warning("Error on ManagedCluster marshal.")
+	}
+	managedCluster := clusterv1.ManagedCluster{}
+	err = json.Unmarshal(j, &managedCluster)
+	if err != nil {
+		klog.Warning("Error on ManagedCluster unmarshal.")
+
+	}
+
+	klog.Infof("Managed Cluster name being added: %s \n", managedCluster.GetName())
+
+	/* cluster := &clusterv1.ManagedCluster{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(mc.UnstructuredContent(), &cluster)
+	if err != nil {
+		klog.Fatalf("Error unmarshal managed cluster object%v \n", err)
+	} */
+
+	//TODO:
+	//get the actual values as mentioned here:
+	//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
+	managedClusterMetric.WithLabelValues(managedCluster.GetName(), "cluster_id", "type", "version", managedCluster.GetLabels()["cloud"], hubID).Set(1)
+}
+
+func delCluster(obj interface{}) {
+	klog.Info("Deleting Managed Clusters ####################")
+
+	j, err := json.Marshal(obj.(*unstructured.Unstructured))
+	if err != nil {
+		klog.Warning("Error on ManagedCluster marshal.")
+	}
+	managedCluster := clusterv1.ManagedCluster{}
+	err = json.Unmarshal(j, &managedCluster)
+	if err != nil {
+		klog.Warning("Error on ManagedCluster unmarshal.")
+	}
+
+	klog.Infof("Managed Cluster name being removed: %s \n", managedCluster.GetName())
+
+	//TODO:
+	//get the actual values as mentioned here:
+	//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
+	managedClusterMetric.WithLabelValues(managedCluster.GetName(), "cluster_id", "type", "version", managedCluster.GetLabels()["cloud"], hubID).Set(0)
+
+}
+
+func fetchTestData(c dynamic.Interface) {
 
 	//TODO: Test - will be removed
 	managedClusterMetric.WithLabelValues("cluster_name", "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id").Set(2.354)
@@ -96,66 +140,17 @@ func fetchTestData() {
 	var stopper chan struct{}
 	informerRunning := false
 
-	dynClient, errClient := getDynClient()
-	if errClient != nil {
-		klog.Fatalf("Error received creating client %v \n", errClient)
-	}
-
-	dynamicFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynClient, 60*time.Second)
+	dynamicFactory := dynamicinformer.NewDynamicSharedInformerFactory(c, 60*time.Second)
 	clusterInformer := dynamicFactory.ForResource(mcGVR).Informer()
-
 	clusterInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-
-			klog.Info("Adding Managed Clusters ####################")
-			j, err := json.Marshal(obj.(*unstructured.Unstructured))
-			if err != nil {
-				klog.Warning("Error on ManagedCluster marshal.")
-			}
-			managedCluster := clusterv1.ManagedCluster{}
-			err = json.Unmarshal(j, &managedCluster)
-			if err != nil {
-				klog.Warning("Error on ManagedCluster unmarshal.")
-
-			}
-
-			klog.Infof("Managed Cluster name being added: %s \n", managedCluster.GetName())
-
-			/* cluster := &clusterv1.ManagedCluster{}
-			err := runtime.DefaultUnstructuredConverter.FromUnstructured(mc.UnstructuredContent(), &cluster)
-			if err != nil {
-				klog.Fatalf("Error unmarshal managed cluster object%v \n", err)
-			} */
-
-			//TODO:
-			//get the actual values as mentioned here:
-			//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
-			managedClusterMetric.WithLabelValues(managedCluster.GetName(), "cluster_id", "type", "version", managedCluster.GetLabels()["cloud"], hubID).Set(1)
-
+			addCluster(obj)
 		},
 		UpdateFunc: func(prev interface{}, next interface{}) {
 			klog.Info("Updating Managed Clusters ####################")
 		},
 		DeleteFunc: func(obj interface{}) {
-			klog.Info("Deleting Managed Clusters ####################")
-
-			j, err := json.Marshal(obj.(*unstructured.Unstructured))
-			if err != nil {
-				klog.Warning("Error on ManagedCluster marshal.")
-			}
-			managedCluster := clusterv1.ManagedCluster{}
-			err = json.Unmarshal(j, &managedCluster)
-			if err != nil {
-				klog.Warning("Error on ManagedCluster unmarshal.")
-			}
-
-			klog.Infof("Managed Cluster name being removed: %s \n", managedCluster.GetName())
-
-			//TODO:
-			//get the actual values as mentioned here:
-			//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
-			managedClusterMetric.WithLabelValues(managedCluster.GetName(), "cluster_id", "type", "version", managedCluster.GetLabels()["cloud"], hubID).Set(0)
-
+			delCluster(obj)
 		},
 	})
 
@@ -180,9 +175,15 @@ func MetricStart(port int32) {
 	r := prometheus.NewRegistry()
 	r.MustRegister(managedClusterMetric)
 
-	getStaticData()
+	dynClient, errClient := getDynClient()
+	if errClient != nil {
+		klog.Fatalf("Error received creating client %v \n", errClient)
+		panic(errClient.Error())
+	}
 
-	go fetchTestData()
+	getStaticData(dynClient)
+
+	fetchTestData(dynClient)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Hello, %q, how are you ?\n", html.EscapeString(r.URL.Path))
