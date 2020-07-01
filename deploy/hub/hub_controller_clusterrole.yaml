@@ -35,3 +35,11 @@ rules:
 - apiGroups: ["register.open-cluster-management.io"]
   resources: ["managedclusters/accept"]
   verbs: ["update"]
+# Allow hub to list PODs (for monitoring)
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]  
+# Allow hub to read cluster version
+- apiGroups: ["config.openshift.io"]
+  resources: ["clusterversions"]
+  verbs: ["get"]  
