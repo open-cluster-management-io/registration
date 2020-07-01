@@ -183,7 +183,7 @@ func MetricStart(port int32) {
 
 	getStaticData(dynClient)
 
-	fetchTestData(dynClient)
+	go fetchTestData(dynClient)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Hello, %q, how are you ?\n", html.EscapeString(r.URL.Path))
