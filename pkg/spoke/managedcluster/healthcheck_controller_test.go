@@ -10,6 +10,7 @@ import (
 	clusterfake "github.com/open-cluster-management/api/client/cluster/clientset/versioned/fake"
 	clusterinformers "github.com/open-cluster-management/api/client/cluster/informers/externalversions"
 	clusterv1 "github.com/open-cluster-management/api/cluster/v1"
+	testinghelpers "github.com/open-cluster-management/registration/pkg/helpers/testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,8 +27,8 @@ type serverResponse struct {
 func TestHealthCheck(t *testing.T) {
 	serverResponse := &serverResponse{}
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != "/readyz" {
-			w.WriteHeader(http.StatusNotFound)
+		if req.URL.Path == "/healthz" {
+			w.WriteHeader(http.StatusOK)
 			return
 		}
 		w.WriteHeader(serverResponse.httpStatus)
@@ -86,6 +87,22 @@ func TestHealthCheck(t *testing.T) {
 				assertCondition(t, actual, expectedCondition)
 			},
 		},
+		{
+			name:       "there is no readyz endpoint",
+			clusters:   []runtime.Object{newAcceptedManagedCluster()},
+			httpStatus: http.StatusNotFound,
+			validateActions: func(t *testing.T, actions []clienttesting.Action) {
+				assertActions(t, actions, "get", "update")
+				actual := actions[1].(clienttesting.UpdateActionImpl).Object
+				expectedCondition := clusterv1.StatusCondition{
+					Type:    clusterv1.ManagedClusterConditionAvailable,
+					Status:  metav1.ConditionTrue,
+					Reason:  "ManagedClusterAvailable",
+					Message: "Managed cluster is available",
+				}
+				assertCondition(t, actual, expectedCondition)
+			},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -105,7 +122,7 @@ func TestHealthCheck(t *testing.T) {
 				hubClusterLister:              clusterInformerFactory.Cluster().V1().ManagedClusters().Lister(),
 				managedClusterDiscoveryClient: discoveryClient,
 			}
-			syncErr := ctrl.sync(context.TODO(), newFakeSyncContext(t))
+			syncErr := ctrl.sync(context.TODO(), testinghelpers.NewFakeSyncContext(t, ""))
 			if len(c.expectedErr) > 0 && syncErr == nil {
 				t.Errorf("expected %q error", c.expectedErr)
 				return
