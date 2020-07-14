@@ -2,13 +2,10 @@ package hub
 
 import (
 	"context"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog"
 
 	clusterv1client "github.com/open-cluster-management/api/client/cluster/clientset/versioned"
 	clusterv1informers "github.com/open-cluster-management/api/client/cluster/informers/externalversions"
@@ -85,21 +82,7 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 	go leaseController.Run(ctx, 1)
 	go rbacFinalizerController.Run(ctx, 1)
 
-	//Add Custom Metrics
-	//make sure its a go func call else it will block
-	enableMetric := false
-	val, exists := os.LookupEnv("METRIC_ENABLE")
-	if exists {
-		enableMetric, err = strconv.ParseBool(val)
-		if err != nil {
-			klog.Warning("Error parsing env METRIC_ENABLE.  Expected a bool.  Original error: ", err)
-			klog.Info("Falling back on default FALSE; Metric collection will be disabled")
-		}
-	}
-
-	if enableMetric {
-		go custommetrics.MetricStart(8890)
-	}
+	go custommetrics.MetricStart()
 
 	<-ctx.Done()
 	return nil

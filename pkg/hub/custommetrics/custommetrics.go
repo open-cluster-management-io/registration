@@ -3,14 +3,10 @@ package custommetrics
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"html"
-	"net/http"
+	"sync"
 	"time"
 
 	ocinfrav1 "github.com/openshift/api/config/v1"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,6 +15,8 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	k8smetrics "k8s.io/component-base/metrics"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog"
 
 	clusterv1 "github.com/open-cluster-management/api/cluster/v1"
@@ -49,12 +47,13 @@ var (
 //cluster_infrastructure_provider = value "Type" from cluster_infrastructure_provider
 //hub_id = cluster_id of hub server
 //cluster_name =User Display Name of Cluster (defaults to Id if not provided)
-var managedClusterMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+var managedClusterMetric = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
 	Name: "a_managed_cluster",
 	Help: "Managed Cluster being managed by ACM Hub.",
 }, []string{"cluster_name", "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id"})
 
 func getDynClient() (dynamic.Interface, error) {
+
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
@@ -63,7 +62,7 @@ func getDynClient() (dynamic.Interface, error) {
 	return dynamic.NewForConfig(config)
 }
 
-func getStaticData(c dynamic.Interface) {
+func getHubClusterId(c dynamic.Interface) {
 
 	cvObj, errCv := c.Resource(cvGVR).Get(context.TODO(), "version", metav1.GetOptions{})
 	if errCv != nil {
@@ -96,12 +95,6 @@ func addCluster(obj interface{}) {
 
 	klog.Infof("Managed Cluster name being added: %s \n", managedCluster.GetName())
 
-	/* cluster := &clusterv1.ManagedCluster{}
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(mc.UnstructuredContent(), &cluster)
-	if err != nil {
-		klog.Fatalf("Error unmarshal managed cluster object%v \n", err)
-	} */
-
 	//TODO:
 	//get the actual values as mentioned here:
 	//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
@@ -130,7 +123,9 @@ func delCluster(obj interface{}) {
 
 }
 
-func fetchTestData(c dynamic.Interface) {
+func fetchManagedClusterData(c dynamic.Interface, wg *sync.WaitGroup) {
+
+	defer wg.Done()
 
 	//TODO: Test - will be removed
 	managedClusterMetric.WithLabelValues("cluster_name", "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id").Set(2.354)
@@ -168,12 +163,14 @@ func fetchTestData(c dynamic.Interface) {
 
 }
 
-func MetricStart(port int32) {
+func MetricStart() {
 
-	var customMetricsPort = port
+	var wg sync.WaitGroup
+
+	// var customMetricsPort = port
 	//registering the metrics to a custom registry
-	r := prometheus.NewRegistry()
-	r.MustRegister(managedClusterMetric)
+	//r := prometheus.NewRegistry()
+	legacyregistry.MustRegister(managedClusterMetric)
 
 	dynClient, errClient := getDynClient()
 	if errClient != nil {
@@ -181,18 +178,11 @@ func MetricStart(port int32) {
 		panic(errClient.Error())
 	}
 
-	getStaticData(dynClient)
+	getHubClusterId(dynClient)
 
-	go fetchTestData(dynClient)
+	wg.Add(1)
+	go fetchManagedClusterData(dynClient, &wg)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello, %q, how are you ?\n", html.EscapeString(r.URL.Path))
-
-	})
-
-	http.Handle("/metrics", promhttp.HandlerFor(r, promhttp.HandlerOpts{}))
-
-	klog.Infof("Custom Metric Service started on port: " + fmt.Sprint(customMetricsPort))
-	klog.Fatal(http.ListenAndServe(":"+fmt.Sprint(customMetricsPort), nil))
+	wg.Wait()
 
 }
