@@ -72,7 +72,7 @@ func getK8sConfig(masterURL string, kubeconfig string) (*restclient.Config, erro
 
 func getDynClient() (dynamic.Interface, error) {
 
-	config, err := getK8sConfig()
+	config, err := getK8sConfig("", "")
 	if err != nil {
 		panic(err.Error())
 	}
