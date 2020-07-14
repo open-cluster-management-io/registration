@@ -14,7 +14,9 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/rest"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	k8smetrics "k8s.io/component-base/metrics"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog"
@@ -52,9 +54,25 @@ var managedClusterMetric = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
 	Help: "Managed Cluster being managed by ACM Hub.",
 }, []string{"cluster_name", "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id"})
 
+func getK8sConfig(masterURL string, kubeconfig string) (*restclient.Config, error) {
+	if masterURL != "" && kubeconfig != "" {
+		// create the config from the path
+		config, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
+		if err != nil {
+			klog.Fatalf("getK8sConfig: %v", err)
+		}
+		return config, err
+	}
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		klog.Fatalf("getK8sConfig: %v", err)
+	}
+	return config, err
+}
+
 func getDynClient() (dynamic.Interface, error) {
 
-	config, err := rest.InClusterConfig()
+	config, err := getK8sConfig()
 	if err != nil {
 		panic(err.Error())
 	}
