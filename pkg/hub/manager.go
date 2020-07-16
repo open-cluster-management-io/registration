@@ -82,7 +82,7 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 	go leaseController.Run(ctx, 1)
 	go rbacFinalizerController.Run(ctx, 1)
 
-	go custommetrics.MetricStart()
+	go custommetrics.MetricStart(controllerContext)
 
 	<-ctx.Done()
 	return nil

@@ -7,16 +7,14 @@ import (
 	"time"
 
 	ocinfrav1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/rest"
-	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 	k8smetrics "k8s.io/component-base/metrics"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog"
@@ -54,30 +52,9 @@ var managedClusterMetric = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
 	Help: "Managed Cluster being managed by ACM Hub.",
 }, []string{"cluster_name", "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id"})
 
-func getK8sConfig(masterURL string, kubeconfig string) (*restclient.Config, error) {
-	if masterURL != "" && kubeconfig != "" {
-		// create the config from the path
-		config, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
-		if err != nil {
-			klog.Fatalf("getK8sConfig: %v", err)
-		}
-		return config, err
-	}
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		klog.Fatalf("getK8sConfig: %v", err)
-	}
-	return config, err
-}
+func getDynClient(controllerContext *controllercmd.ControllerContext) (dynamic.Interface, error) {
 
-func getDynClient() (dynamic.Interface, error) {
-
-	config, err := getK8sConfig("", "")
-	if err != nil {
-		panic(err.Error())
-	}
-
-	return dynamic.NewForConfig(config)
+	return dynamic.NewForConfig(controllerContext.KubeConfig)
 }
 
 func getHubClusterId(c dynamic.Interface) {
@@ -181,7 +158,7 @@ func fetchManagedClusterData(c dynamic.Interface, wg *sync.WaitGroup) {
 
 }
 
-func MetricStart() {
+func MetricStart(controllerContext *controllercmd.ControllerContext) {
 
 	var wg sync.WaitGroup
 
@@ -190,7 +167,7 @@ func MetricStart() {
 	//r := prometheus.NewRegistry()
 	legacyregistry.MustRegister(managedClusterMetric)
 
-	dynClient, errClient := getDynClient()
+	dynClient, errClient := getDynClient(controllerContext)
 	if errClient != nil {
 		klog.Fatalf("Error received creating client %v \n", errClient)
 		panic(errClient.Error())
