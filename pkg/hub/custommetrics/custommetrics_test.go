@@ -9,7 +9,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
-func TestGetStaticData(t *testing.T) {
+func TestGetHubClusterId(t *testing.T) {
 
 	s := scheme.Scheme
 	if err := ocinfrav1.AddToScheme(s); err != nil {
@@ -25,7 +25,7 @@ func TestGetStaticData(t *testing.T) {
 	}
 
 	c := fake.NewSimpleDynamicClient(s, cv)
-	getStaticData(c)
+	getHubClusterId(c)
 	if hubID != id {
 		t.Fatal("Failed to get cluster id")
 	}

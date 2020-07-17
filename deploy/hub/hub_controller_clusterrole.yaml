@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: system:open-cluster-management:hub
+  name: open-cluster-management:hub
 rules:
 # Allow hub to monitor and update status of csr
 - apiGroups: ["certificates.k8s.io"]
@@ -38,7 +38,7 @@ rules:
 - apiGroups: ["register.open-cluster-management.io"]
   resources: ["managedclusters/accept"]
   verbs: ["update"]
-# Allow hub to read cluster version
+# Allow to query the CVO on the Hub Cluster to get the ClusterId
 - apiGroups: ["config.openshift.io"]
   resources: ["clusterversions"]
   verbs: ["get"]  
