@@ -71,12 +71,11 @@ func getHubClusterId(c dynamic.Interface) {
 		panic(errCv.Error())
 	}
 	hubID = string(cv.Spec.ClusterID)
-	klog.Infof("Hub id of this ACM Server is " + hubID)
 
 }
 
 func addCluster(obj interface{}) {
-	klog.Info("Adding Managed Clusters ####################")
+
 	j, err := json.Marshal(obj.(*unstructured.Unstructured))
 	if err != nil {
 		klog.Warning("Error on ManagedCluster marshal.")
@@ -97,7 +96,6 @@ func addCluster(obj interface{}) {
 }
 
 func delCluster(obj interface{}) {
-	klog.Info("Deleting Managed Clusters ####################")
 
 	j, err := json.Marshal(obj.(*unstructured.Unstructured))
 	if err != nil {

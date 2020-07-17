@@ -38,7 +38,7 @@ rules:
 - apiGroups: ["register.open-cluster-management.io"]
   resources: ["managedclusters/accept"]
   verbs: ["update"]
-# Allow hub to read cluster version
+# Allow to query the CVO on the Hub Cluster to get the ClusterId
 - apiGroups: ["config.openshift.io"]
   resources: ["clusterversions"]
   verbs: ["get"]  
