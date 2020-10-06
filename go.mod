@@ -4,6 +4,9 @@ go 1.14
 
 replace github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.1 // ensure compatible between controller-runtime and kube-openapi
 
+// temporary hack fix for https://github.com/kubernetes/kubernetes/issues/95300
+replace k8s.io/apiserver => github.com/staebler/apiserver v0.19.1-0.20201005174924-a3ef0d1e45df
+
 require (
 	github.com/go-bindata/go-bindata v3.1.2+incompatible
 	github.com/onsi/ginkgo v1.14.0
