@@ -12,6 +12,7 @@ import (
 	workv1client "github.com/open-cluster-management/api/client/work/clientset/versioned"
 	workv1informers "github.com/open-cluster-management/api/client/work/informers/externalversions"
 	"github.com/open-cluster-management/registration/pkg/hub/csr"
+	"github.com/open-cluster-management/registration/pkg/hub/custommetrics"
 	"github.com/open-cluster-management/registration/pkg/hub/lease"
 	"github.com/open-cluster-management/registration/pkg/hub/managedcluster"
 	"github.com/open-cluster-management/registration/pkg/hub/managedclusterset"
@@ -89,6 +90,8 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 	go leaseController.Run(ctx, 1)
 	go rbacFinalizerController.Run(ctx, 1)
 	go managedClusterSetController.Run(ctx, 1)
+
+	go custommetrics.MetricStart(controllerContext)
 
 	<-ctx.Done()
 	return nil

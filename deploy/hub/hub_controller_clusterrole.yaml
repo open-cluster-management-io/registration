@@ -50,3 +50,7 @@ rules:
 - apiGroups: ["cluster.open-cluster-management.io"]
   resources: ["managedclustersets/status"]
   verbs: ["update", "patch"]
+# Allow to query the CVO on the Hub Cluster to get the ClusterId
+- apiGroups: ["config.openshift.io"]
+  resources: ["clusterversions"]
+  verbs: ["get"]  
