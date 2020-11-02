@@ -54,6 +54,16 @@ rules:
 - apiGroups: ["config.openshift.io"]
   resources: ["clusterversions"]
   verbs: ["get"]  
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create"]  
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["subjectaccessreviews"]
+  verbs: ["create"]  
 # Allow the GET request for /metrics
-- nonResourceURLs: ["/metrics"] 
+- nonResourceURLs: ["/metrics","/metrics/*"] 
   verbs: ["get"]
+- apiGroups: [""]
+  resources: [ "nodes/metrics" ]
+  verbs: [ "get" ]
+  
