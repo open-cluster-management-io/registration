@@ -54,3 +54,6 @@ rules:
 - apiGroups: ["config.openshift.io"]
   resources: ["clusterversions"]
   verbs: ["get"]  
+# Allow the GET request for /metrics
+- nonResourceURLs: ["/metrics"] 
+  verbs: ["get"]
