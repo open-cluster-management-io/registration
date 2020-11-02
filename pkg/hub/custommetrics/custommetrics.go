@@ -1,16 +1,12 @@
 package custommetrics
 
 import (
-	"context"
 	"encoding/json"
 	"sync"
 	"time"
 
-	ocinfrav1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -31,14 +27,6 @@ var (
 		Version:  "v1",
 		Resource: "managedclusters",
 	}
-
-	cvGVR = schema.GroupVersionResource{
-		Group:    "config.openshift.io",
-		Version:  "v1",
-		Resource: "clusterversions",
-	}
-
-	hubID = ""
 )
 
 //cluster_id = OCP ID of the Cluster (need to resolve for eks, etc)
@@ -50,28 +38,11 @@ var (
 var managedClusterMetric = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
 	Name: "a_managed_cluster",
 	Help: "Managed Cluster being managed by ACM Hub.",
-}, []string{"cluster_name", "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id"})
+}, []string{"cluster_name", "type", "version", "cluster_infrastructure_provider"})
 
 func getDynClient(controllerContext *controllercmd.ControllerContext) (dynamic.Interface, error) {
 
 	return dynamic.NewForConfig(controllerContext.KubeConfig)
-}
-
-func getHubClusterId(c dynamic.Interface) {
-
-	cvObj, errCv := c.Resource(cvGVR).Get(context.TODO(), "version", metav1.GetOptions{})
-	if errCv != nil {
-		klog.Fatalf("Error getting cluster version %v \n", errCv)
-		panic(errCv.Error())
-	}
-	cv := &ocinfrav1.ClusterVersion{}
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(cvObj.UnstructuredContent(), &cv)
-	if err != nil {
-		klog.Fatalf("Error unmarshal cluster version object%v \n", err)
-		panic(errCv.Error())
-	}
-	hubID = string(cv.Spec.ClusterID)
-
 }
 
 func addCluster(obj interface{}) {
@@ -92,7 +63,7 @@ func addCluster(obj interface{}) {
 	//TODO:
 	//get the actual values as mentioned here:
 	//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
-	managedClusterMetric.WithLabelValues(managedCluster.GetName(), "cluster_id", "type", "version", managedCluster.GetLabels()["cloud"], hubID).Set(1)
+	managedClusterMetric.WithLabelValues(managedCluster.GetName(), "type", "version", managedCluster.GetLabels()["cloud"]).Set(1)
 }
 
 func delCluster(obj interface{}) {
@@ -112,7 +83,7 @@ func delCluster(obj interface{}) {
 	//TODO:
 	//get the actual values as mentioned here:
 	//https://github.com/open-cluster-management/perf-analysis/blob/master/Big%20Picture.md#acm-20-telemetry-data
-	managedClusterMetric.WithLabelValues(managedCluster.GetName(), "cluster_id", "type", "version", managedCluster.GetLabels()["cloud"], hubID).Set(0)
+	managedClusterMetric.WithLabelValues(managedCluster.GetName(), "type", "version", managedCluster.GetLabels()["cloud"]).Set(0)
 
 }
 
@@ -121,7 +92,7 @@ func fetchManagedClusterData(c dynamic.Interface, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	//TODO: Test - will be removed
-	managedClusterMetric.WithLabelValues("cluster_name", "cluster_id", "type", "version", "cluster_infrastructure_provider", "hub_id").Set(2.354)
+	managedClusterMetric.WithLabelValues("cluster_name", "type", "version", "cluster_infrastructure_provider").Set(2.354)
 
 	klog.Infof("Getting data for Managed Clusters")
 
@@ -170,8 +141,6 @@ func MetricStart(controllerContext *controllercmd.ControllerContext) {
 		klog.Fatalf("Error received creating client %v \n", errClient)
 		panic(errClient.Error())
 	}
-
-	getHubClusterId(dynClient)
 
 	wg.Add(1)
 	go fetchManagedClusterData(dynClient, &wg)
