@@ -56,14 +56,9 @@ rules:
   verbs: ["get"]  
 - apiGroups: ["authentication.k8s.io"]
   resources: ["tokenreviews"]
-  verbs: ["create"]  
-- apiGroups: ["authentication.k8s.io"]
+  verbs: ["create"]
+- apiGroups: ["authorization.k8s.io"]
   resources: ["subjectaccessreviews"]
-  verbs: ["create"]  
-# Allow the GET request for /metrics
-- nonResourceURLs: ["/metrics","/metrics/*"] 
+  verbs: ["create"]
+- nonResourceURLs: ["/metrics"]
   verbs: ["get"]
-- apiGroups: [""]
-  resources: [ "nodes/metrics" ]
-  verbs: [ "get" ]
-  
