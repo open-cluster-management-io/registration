@@ -131,7 +131,7 @@ func pkgHubManagedclusterManifestsManagedclusterClusterrolebindingYaml() (*asset
 var _pkgHubManagedclusterManifestsManagedclusterNamespaceYaml = []byte(`apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ .ManagedClusterName }}
+  name: "{{ .ManagedClusterName }}"
 `)
 
 func pkgHubManagedclusterManifestsManagedclusterNamespaceYamlBytes() ([]byte, error) {
@@ -153,7 +153,7 @@ var _pkgHubManagedclusterManifestsManagedclusterRegistrationRoleYaml = []byte(`a
 kind: Role
 metadata:
   name: {{ .ManagedClusterName }}:managed-cluster-registration
-  namespace: {{ .ManagedClusterName }}
+  namespace: "{{ .ManagedClusterName }}"
 rules:
 # Allow spoke registration agent to get/update coordination.k8s.io/lease
 - apiGroups: ["coordination.k8s.io"]
@@ -181,7 +181,7 @@ var _pkgHubManagedclusterManifestsManagedclusterRegistrationRolebindingYaml = []
 kind: RoleBinding
 metadata:
   name: {{ .ManagedClusterName }}:managed-cluster-registration
-  namespace: {{ .ManagedClusterName }}
+  namespace: "{{ .ManagedClusterName }}"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -213,7 +213,7 @@ var _pkgHubManagedclusterManifestsManagedclusterWorkRoleYaml = []byte(`apiVersio
 kind: Role
 metadata:
   name: {{ .ManagedClusterName }}:managed-cluster-work
-  namespace: {{ .ManagedClusterName }}
+  namespace: "{{ .ManagedClusterName }}"
   finalizers:
   - cluster.open-cluster-management.io/manifest-work-cleanup
 rules:
@@ -250,7 +250,7 @@ var _pkgHubManagedclusterManifestsManagedclusterWorkRolebindingYaml = []byte(`ap
 kind: RoleBinding
 metadata:
   name: {{ .ManagedClusterName }}:managed-cluster-work
-  namespace: {{ .ManagedClusterName }}
+  namespace: "{{ .ManagedClusterName }}"
   finalizers:
   - cluster.open-cluster-management.io/manifest-work-cleanup
 roleRef:
