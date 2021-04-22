@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	clusterv1alpha1 "github.com/open-cluster-management/api/cluster/v1alpha1"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,53 +24,53 @@ var managedclustersetbindingSchema = metav1.GroupVersionResource{
 func TestManagedClusterValidate(t *testing.T) {
 	cases := []struct {
 		name                     string
-		request                  *admissionv1beta1.AdmissionRequest
-		expectedResponse         *admissionv1beta1.AdmissionResponse
+		request                  *admissionv1.AdmissionRequest
+		expectedResponse         *admissionv1.AdmissionResponse
 		allowBindingToClusterSet bool
 	}{
 		{
 			name: "validate non-managedclustersetbindings request",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource: metav1.GroupVersionResource{
 					Group:    "test.open-cluster-management.io",
 					Version:  "v1",
 					Resource: "tests",
 				},
 			},
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed: true,
 			},
 		},
 		{
 			name: "validate deleting operation",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource:  managedclustersetbindingSchema,
-				Operation: admissionv1beta1.Delete,
+				Operation: admissionv1.Delete,
 			},
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed: true,
 			},
 		},
 		{
 			name: "validate creating cluster set binding",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource:  managedclustersetbindingSchema,
-				Operation: admissionv1beta1.Create,
+				Operation: admissionv1.Create,
 				Object:    newManagedClusterSetBindingObj("ns1", "cs1", "cs1", nil),
 			},
 			allowBindingToClusterSet: true,
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed: true,
 			},
 		},
 		{
 			name: "validate creating cluster set binding with unmatched name",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource:  managedclustersetbindingSchema,
-				Operation: admissionv1beta1.Create,
+				Operation: admissionv1.Create,
 				Object:    newManagedClusterSetBindingObj("ns1", "csb1", "cs1", nil),
 			},
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
 					Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
@@ -80,12 +80,12 @@ func TestManagedClusterValidate(t *testing.T) {
 		},
 		{
 			name: "validate creating cluster set binding without permission",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource:  managedclustersetbindingSchema,
-				Operation: admissionv1beta1.Create,
+				Operation: admissionv1.Create,
 				Object:    newManagedClusterSetBindingObj("ns1", "cs1", "cs1", nil),
 			},
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
 					Status: metav1.StatusFailure, Code: http.StatusForbidden, Reason: metav1.StatusReasonForbidden,
@@ -95,28 +95,28 @@ func TestManagedClusterValidate(t *testing.T) {
 		},
 		{
 			name: "validate updating cluster set binding",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource:  managedclustersetbindingSchema,
-				Operation: admissionv1beta1.Update,
+				Operation: admissionv1.Update,
 				Object:    newManagedClusterSetBindingObj("ns1", "cs1", "cs1", nil),
 				OldObject: newManagedClusterSetBindingObj("ns1", "cs1", "cs2", map[string]string{
 					"team": "team1",
 				}),
 			},
 			allowBindingToClusterSet: true,
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed: true,
 			},
 		},
 		{
 			name: "validate updating cluster set binding with different cluster set",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource:  managedclustersetbindingSchema,
-				Operation: admissionv1beta1.Update,
+				Operation: admissionv1.Update,
 				Object:    newManagedClusterSetBindingObj("ns1", "cs1", "cs2", nil),
 				OldObject: newManagedClusterSetBindingObj("ns1", "cs1", "cs1", nil),
 			},
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
 					Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,

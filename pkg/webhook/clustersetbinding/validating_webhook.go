@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	clusterv1alpha1 "github.com/open-cluster-management/api/cluster/v1alpha1"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,7 +34,7 @@ func (a *ManagedClusterSetBindingValidatingAdmissionHook) ValidatingResource() (
 }
 
 // Validate is called by generic-admission-server when the registered REST resource above is called with an admission request.
-func (a *ManagedClusterSetBindingValidatingAdmissionHook) Validate(admissionSpec *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
+func (a *ManagedClusterSetBindingValidatingAdmissionHook) Validate(admissionSpec *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	klog.V(4).Infof("validate %q operation for object %q", admissionSpec.Operation, admissionSpec.Object)
 
 	// only validate the request for ManagedClusterSetBinding
@@ -44,7 +44,7 @@ func (a *ManagedClusterSetBindingValidatingAdmissionHook) Validate(admissionSpec
 	}
 
 	// only handle Create/Update Operation
-	if admissionSpec.Operation != admissionv1beta1.Create && admissionSpec.Operation != admissionv1beta1.Update {
+	if admissionSpec.Operation != admissionv1.Create && admissionSpec.Operation != admissionv1.Update {
 		return acceptRequest()
 	}
 
@@ -61,7 +61,7 @@ func (a *ManagedClusterSetBindingValidatingAdmissionHook) Validate(admissionSpec
 	}
 
 	// check if the request user has permission to bind the target cluster set
-	if admissionSpec.Operation == admissionv1beta1.Create {
+	if admissionSpec.Operation == admissionv1.Create {
 		return a.allowBindingToClusterSet(binding.Spec.ClusterSet, admissionSpec.UserInfo)
 	}
 
@@ -80,7 +80,7 @@ func (a *ManagedClusterSetBindingValidatingAdmissionHook) Initialize(kubeClientC
 }
 
 // allowBindingToClusterSet checks if the user has permission to bind a particular cluster set
-func (a *ManagedClusterSetBindingValidatingAdmissionHook) allowBindingToClusterSet(clusterSetName string, userInfo authenticationv1.UserInfo) *admissionv1beta1.AdmissionResponse {
+func (a *ManagedClusterSetBindingValidatingAdmissionHook) allowBindingToClusterSet(clusterSetName string, userInfo authenticationv1.UserInfo) *admissionv1.AdmissionResponse {
 	extra := make(map[string]authorizationv1.ExtraValue)
 	for k, v := range userInfo.Extra {
 		extra[k] = authorizationv1.ExtraValue(v)
@@ -111,14 +111,14 @@ func (a *ManagedClusterSetBindingValidatingAdmissionHook) allowBindingToClusterS
 	return acceptRequest()
 }
 
-func acceptRequest() *admissionv1beta1.AdmissionResponse {
-	return &admissionv1beta1.AdmissionResponse{
+func acceptRequest() *admissionv1.AdmissionResponse {
+	return &admissionv1.AdmissionResponse{
 		Allowed: true,
 	}
 }
 
-func denyRequest(code int32, reason metav1.StatusReason, message string) *admissionv1beta1.AdmissionResponse {
-	return &admissionv1beta1.AdmissionResponse{
+func denyRequest(code int32, reason metav1.StatusReason, message string) *admissionv1.AdmissionResponse {
+	return &admissionv1.AdmissionResponse{
 		Allowed: false,
 		Result: &metav1.Status{
 			Status:  metav1.StatusFailure,

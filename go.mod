@@ -11,7 +11,7 @@ require (
 	github.com/open-cluster-management/api v0.0.0-20210409125704-06f2aec1a73f
 	github.com/openshift/api v0.0.0-20210331193751-3acddb19d360
 	github.com/openshift/build-machinery-go v0.0.0-20210209125900-0da259a2c359
-	github.com/openshift/generic-admission-server v1.14.1-0.20200903115324-4ddcdd976480
+	github.com/openshift/generic-admission-server v1.14.1-0.20210422140326-da96454c926d
 	github.com/openshift/library-go v0.0.0-20210407140145-f831e911c638
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5

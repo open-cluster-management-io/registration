@@ -6,7 +6,7 @@ import (
 
 	clusterv1 "github.com/open-cluster-management/api/cluster/v1"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -30,10 +30,10 @@ func (a *ManagedClusterMutatingAdmissionHook) MutatingResource() (schema.GroupVe
 }
 
 // Admit is called by generic-admission-server when the registered REST resource above is called with an admission request.
-func (a *ManagedClusterMutatingAdmissionHook) Admit(req *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
+func (a *ManagedClusterMutatingAdmissionHook) Admit(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	klog.V(4).Infof("mutate %q operation for object %q", req.Operation, req.Object)
 
-	status := &admissionv1beta1.AdmissionResponse{
+	status := &admissionv1.AdmissionResponse{
 		Allowed: true,
 	}
 
@@ -44,7 +44,7 @@ func (a *ManagedClusterMutatingAdmissionHook) Admit(req *admissionv1beta1.Admiss
 	}
 
 	// only mutate create and update operation
-	if req.Operation != admissionv1beta1.Create && req.Operation != admissionv1beta1.Update {
+	if req.Operation != admissionv1.Create && req.Operation != admissionv1.Update {
 		return status
 	}
 
@@ -61,7 +61,7 @@ func (a *ManagedClusterMutatingAdmissionHook) Admit(req *admissionv1beta1.Admiss
 	// If LeaseDurationSeconds value is zero, update it to 60 by default
 	if managedCluster.Spec.LeaseDurationSeconds == 0 {
 		status.Patch = []byte(defaultLeaseDurationSecondsPatch)
-		pt := admissionv1beta1.PatchTypeJSONPatch
+		pt := admissionv1.PatchTypeJSONPatch
 		status.PatchType = &pt
 	}
 

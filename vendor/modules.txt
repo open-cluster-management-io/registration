@@ -241,7 +241,7 @@ github.com/openshift/build-machinery-go/make/targets/golang
 github.com/openshift/build-machinery-go/make/targets/openshift
 github.com/openshift/build-machinery-go/make/targets/openshift/operator
 github.com/openshift/build-machinery-go/scripts
-# github.com/openshift/generic-admission-server v1.14.1-0.20200903115324-4ddcdd976480
+# github.com/openshift/generic-admission-server v1.14.1-0.20210422140326-da96454c926d
 ## explicit
 github.com/openshift/generic-admission-server/pkg/apiserver
 github.com/openshift/generic-admission-server/pkg/cmd/server
