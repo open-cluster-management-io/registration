@@ -6,50 +6,50 @@ import (
 	"testing"
 
 	testinghelpers "github.com/open-cluster-management/registration/pkg/helpers/testing"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func TestManagedClusterMutate(t *testing.T) {
-	pt := admissionv1beta1.PatchTypeJSONPatch
+	pt := admissionv1.PatchTypeJSONPatch
 	cases := []struct {
 		name                   string
-		request                *admissionv1beta1.AdmissionRequest
-		expectedResponse       *admissionv1beta1.AdmissionResponse
+		request                *admissionv1.AdmissionRequest
+		expectedResponse       *admissionv1.AdmissionResponse
 		allowUpdateAcceptField bool
 	}{
 		{
 			name: "mutate non-managedclusters request",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource: metav1.GroupVersionResource{
 					Group:    "test.open-cluster-management.io",
 					Version:  "v1",
 					Resource: "tests",
 				},
 			},
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed: true,
 			},
 		},
 		{
 			name: "mutate deleting operation",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource:  managedclustersSchema,
-				Operation: admissionv1beta1.Delete,
+				Operation: admissionv1.Delete,
 			},
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed: true,
 			},
 		},
 		{
 			name: "mutate a ManagedCluster without LeaseDurationSeconds setting",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource:  managedclustersSchema,
-				Operation: admissionv1beta1.Create,
+				Operation: admissionv1.Create,
 				Object:    newManagedClusterObj(),
 			},
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed:   true,
 				Patch:     []byte(`[{"op": "replace", "path": "/spec/leaseDurationSeconds", "value": 60}]`),
 				PatchType: &pt,
@@ -57,12 +57,12 @@ func TestManagedClusterMutate(t *testing.T) {
 		},
 		{
 			name: "mutate a ManagedCluster with LeaseDurationSeconds setting",
-			request: &admissionv1beta1.AdmissionRequest{
+			request: &admissionv1.AdmissionRequest{
 				Resource:  managedclustersSchema,
-				Operation: admissionv1beta1.Create,
+				Operation: admissionv1.Create,
 				Object:    newManagedClusterObjWithLeaseDurationSeconds(60),
 			},
-			expectedResponse: &admissionv1beta1.AdmissionResponse{
+			expectedResponse: &admissionv1.AdmissionResponse{
 				Allowed: true,
 			},
 		},

@@ -11,7 +11,7 @@ import (
 
 	operatorhelpers "github.com/openshift/library-go/pkg/operator/v1helpers"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,10 +43,10 @@ func (a *ManagedClusterValidatingAdmissionHook) ValidatingResource() (plural sch
 }
 
 // Validate is called by generic-admission-server when the registered REST resource above is called with an admission request.
-func (a *ManagedClusterValidatingAdmissionHook) Validate(admissionSpec *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
+func (a *ManagedClusterValidatingAdmissionHook) Validate(admissionSpec *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	klog.V(4).Infof("validate %q operation for object %q", admissionSpec.Operation, admissionSpec.Object)
 
-	status := &admissionv1beta1.AdmissionResponse{}
+	status := &admissionv1.AdmissionResponse{}
 
 	// only validate the request for managedcluster
 	if admissionSpec.Resource.Group != "cluster.open-cluster-management.io" ||
@@ -56,9 +56,9 @@ func (a *ManagedClusterValidatingAdmissionHook) Validate(admissionSpec *admissio
 	}
 
 	switch admissionSpec.Operation {
-	case admissionv1beta1.Create:
+	case admissionv1.Create:
 		return a.validateCreateRequest(admissionSpec)
-	case admissionv1beta1.Update:
+	case admissionv1.Update:
 		return a.validateUpdateRequest(admissionSpec)
 	default:
 		status.Allowed = true
@@ -74,8 +74,8 @@ func (a *ManagedClusterValidatingAdmissionHook) Initialize(kubeClientConfig *res
 }
 
 // validateCreateRequest validates create managed cluster operation
-func (a *ManagedClusterValidatingAdmissionHook) validateCreateRequest(request *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
-	status := &admissionv1beta1.AdmissionResponse{}
+func (a *ManagedClusterValidatingAdmissionHook) validateCreateRequest(request *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+	status := &admissionv1.AdmissionResponse{}
 
 	// validate ManagedCluster object firstly
 	managedCluster, err := a.validateManagedClusterObj(request.Object)
@@ -106,8 +106,8 @@ func (a *ManagedClusterValidatingAdmissionHook) validateCreateRequest(request *a
 }
 
 // validateUpdateRequest validates update managed cluster operation.
-func (a *ManagedClusterValidatingAdmissionHook) validateUpdateRequest(request *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
-	status := &admissionv1beta1.AdmissionResponse{}
+func (a *ManagedClusterValidatingAdmissionHook) validateUpdateRequest(request *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+	status := &admissionv1.AdmissionResponse{}
 
 	oldManagedCluster := &clusterv1.ManagedCluster{}
 	if err := json.Unmarshal(request.OldObject.Raw, oldManagedCluster); err != nil {
@@ -176,8 +176,8 @@ func (a *ManagedClusterValidatingAdmissionHook) validateManagedClusterObj(reques
 
 // allowUpdateHubAcceptsClientField using SubjectAccessReview API to check whether a request user has been authorized to update
 // HubAcceptsClient field
-func (a *ManagedClusterValidatingAdmissionHook) allowUpdateAcceptField(clusterName string, userInfo authenticationv1.UserInfo) *admissionv1beta1.AdmissionResponse {
-	status := &admissionv1beta1.AdmissionResponse{}
+func (a *ManagedClusterValidatingAdmissionHook) allowUpdateAcceptField(clusterName string, userInfo authenticationv1.UserInfo) *admissionv1.AdmissionResponse {
+	status := &admissionv1.AdmissionResponse{}
 
 	extra := make(map[string]authorizationv1.ExtraValue)
 	for k, v := range userInfo.Extra {
@@ -223,9 +223,9 @@ func (a *ManagedClusterValidatingAdmissionHook) allowUpdateAcceptField(clusterNa
 }
 
 // allowSetClusterSetLabel checks whether a request user has been authorized to set clusterset label
-func (a *ManagedClusterValidatingAdmissionHook) allowSetClusterSetLabel(userInfo authenticationv1.UserInfo, originalClusterSet, newClusterSet string) *admissionv1beta1.AdmissionResponse {
+func (a *ManagedClusterValidatingAdmissionHook) allowSetClusterSetLabel(userInfo authenticationv1.UserInfo, originalClusterSet, newClusterSet string) *admissionv1.AdmissionResponse {
 	if originalClusterSet == newClusterSet {
-		return &admissionv1beta1.AdmissionResponse{Allowed: true}
+		return &admissionv1.AdmissionResponse{Allowed: true}
 	}
 
 	if len(originalClusterSet) > 0 {
@@ -240,15 +240,15 @@ func (a *ManagedClusterValidatingAdmissionHook) allowSetClusterSetLabel(userInfo
 		}
 	}
 
-	return &admissionv1beta1.AdmissionResponse{
+	return &admissionv1.AdmissionResponse{
 		Allowed: true,
 	}
 }
 
 // allowUpdateClusterSet checks whether a request user has been authorized to add/remove a ManagedCluster
 // to/from the ManagedClusterSet
-func (a *ManagedClusterValidatingAdmissionHook) allowUpdateClusterSet(userInfo authenticationv1.UserInfo, clusterSetName string) *admissionv1beta1.AdmissionResponse {
-	status := &admissionv1beta1.AdmissionResponse{}
+func (a *ManagedClusterValidatingAdmissionHook) allowUpdateClusterSet(userInfo authenticationv1.UserInfo, clusterSetName string) *admissionv1.AdmissionResponse {
+	status := &admissionv1.AdmissionResponse{}
 
 	extra := make(map[string]authorizationv1.ExtraValue)
 	for k, v := range userInfo.Extra {

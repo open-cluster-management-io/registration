@@ -21,7 +21,7 @@ webhooks:
     - "*"
     resources:
     - managedclusters
-  admissionReviewVersions: ["v1beta1"]
+  admissionReviewVersions: ["v1"]
   sideEffects: None
   timeoutSeconds: 3
 
@@ -50,7 +50,7 @@ webhooks:
     - "*"
     resources:
     - managedclusters
-  admissionReviewVersions: ["v1beta1"]
+  admissionReviewVersions: ["v1"]
   sideEffects: None
   timeoutSeconds: 3
 
@@ -79,6 +79,6 @@ webhooks:
     - "*"
     resources:
     - managedclustersetbindings
-  admissionReviewVersions: ["v1beta1"]
+  admissionReviewVersions: ["v1"]
   sideEffects: None
   timeoutSeconds: 3
