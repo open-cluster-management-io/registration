@@ -93,6 +93,7 @@ You can find more details for cluster join process from this [design doc](https:
     name: clusterset1
   EOF
   ```
+
 2. Add your cluster to the created cluster
   ```
   kubectl label managedclusters local-development "cluster.open-cluster-management.io/clusterset=clusterset1" --overwrite
