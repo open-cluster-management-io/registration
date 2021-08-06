@@ -9,6 +9,7 @@ import (
 	listerv1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1"
 	v1 "open-cluster-management.io/api/cluster/v1"
 	"open-cluster-management.io/registration/pkg/helpers"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
@@ -78,17 +79,11 @@ func (c *managedClusterController) sync(ctx context.Context, syncCtx factory.Syn
 
 	managedCluster = managedCluster.DeepCopy()
 	if managedCluster.DeletionTimestamp.IsZero() {
-		hasFinalizer := false
-		for i := range managedCluster.Finalizers {
-			if managedCluster.Finalizers[i] == managedClusterFinalizer {
-				hasFinalizer = true
-				break
+		if !controllerutil.ContainsFinalizer(managedCluster, managedClusterFinalizer) {
+			controllerutil.AddFinalizer(managedCluster, managedClusterFinalizer)
+			if _, err := c.clusterClient.ClusterV1().ManagedClusters().Update(ctx, managedCluster, metav1.UpdateOptions{}); err != nil {
+				return err
 			}
-		}
-		if !hasFinalizer {
-			managedCluster.Finalizers = append(managedCluster.Finalizers, managedClusterFinalizer)
-			_, err := c.clusterClient.ClusterV1().ManagedClusters().Update(ctx, managedCluster, metav1.UpdateOptions{})
-			return err
 		}
 	}
 
@@ -97,7 +92,13 @@ func (c *managedClusterController) sync(ctx context.Context, syncCtx factory.Syn
 		if err := c.removeManagedClusterResources(ctx, managedClusterName); err != nil {
 			return err
 		}
-		return c.removeManagedClusterFinalizer(ctx, managedCluster)
+		if controllerutil.ContainsFinalizer(managedCluster, managedClusterFinalizer) {
+			controllerutil.RemoveFinalizer(managedCluster, managedClusterFinalizer)
+			if _, err := c.clusterClient.ClusterV1().ManagedClusters().Update(ctx, managedCluster, metav1.UpdateOptions{}); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	if !managedCluster.Spec.HubAcceptsClient {
@@ -195,22 +196,4 @@ func (c *managedClusterController) removeManagedClusterResources(ctx context.Con
 		errs = append(errs, err)
 	}
 	return operatorhelpers.NewMultiLineAggregate(errs)
-}
-
-func (c *managedClusterController) removeManagedClusterFinalizer(ctx context.Context, managedCluster *v1.ManagedCluster) error {
-	copiedFinalizers := []string{}
-	for i := range managedCluster.Finalizers {
-		if managedCluster.Finalizers[i] == managedClusterFinalizer {
-			continue
-		}
-		copiedFinalizers = append(copiedFinalizers, managedCluster.Finalizers[i])
-	}
-
-	if len(managedCluster.Finalizers) != len(copiedFinalizers) {
-		managedCluster.Finalizers = copiedFinalizers
-		_, err := c.clusterClient.ClusterV1().ManagedClusters().Update(ctx, managedCluster, metav1.UpdateOptions{})
-		return err
-	}
-
-	return nil
 }
