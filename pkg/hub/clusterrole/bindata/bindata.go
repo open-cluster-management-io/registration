@@ -75,6 +75,12 @@ rules:
 - apiGroups: ["addon.open-cluster-management.io"]
   resources: ["managedclusteraddons/status"]
   verbs: ["patch", "update"]
+- apiGroups: ["cluster.open-cluster-management.io"]
+  resources: ["managedclusterscalars"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["cluster.open-cluster-management.io"]
+  resources: ["managedclusterscalars/status"]
+  verbs: ["patch", "update"]
 `)
 
 func pkgHubClusterroleManifestsManagedclusterRegistrationClusterroleYamlBytes() ([]byte, error) {
