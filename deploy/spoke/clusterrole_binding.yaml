@@ -10,4 +10,3 @@ subjects:
   - kind: ServiceAccount
     name: spoke-agent-sa
     namespace: open-cluster-management-agent
-  
