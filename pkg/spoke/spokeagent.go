@@ -75,8 +75,15 @@ func NewSpokeAgentOptions() *SpokeAgentOptions {
 
 // RunSpokeAgent starts the controllers on spoke agent to register to the hub.
 //
+// There are two deploy mode for the registration agent: 'Default' mode and 'Detached' mode,
+// - In Default mode, the registration agent pod runs on the spoke/managed cluster.
+// - In Detached mode, the registration agent pod may run on a separated cluster from the
+//   spoke/managed cluster, we define this cluster as 'management' cluster.
+//
 // The spoke agent uses four kubeconfigs for different concerns:
-// - The 'agent' kubeconfig: used to communicate with the cluster where the agent is running.
+// - The 'management' kubeconfig: used to communicate with the cluster where the agent pod
+//   runs. In Default mode, it is the managed cluster's kubeconfig; in Detached mode, it is
+//   the management cluster's kubeconfig.
 // - The 'spoke' kubeconfig: used to communicate with the spoke/managed cluster which will
 //   be registered to the hub.
 // - The 'bootstrap' kubeconfig: used to communicate with the hub in order to
@@ -96,8 +103,8 @@ func NewSpokeAgentOptions() *SpokeAgentOptions {
 // create a valid hub kubeconfig. Once the hub kubeconfig is valid, the
 // temporary controller is stopped and the main controllers are started.
 func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext *controllercmd.ControllerContext) error {
-	// create agent kube client
-	agentKubeClient, err := kubernetes.NewForConfig(controllerContext.KubeConfig)
+	// create management kube client
+	managementKubeClient, err := kubernetes.NewForConfig(controllerContext.KubeConfig)
 	if err != nil {
 		return err
 	}
@@ -115,7 +122,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	}
 
 	// the hub kubeconfig secret stored in the cluster where the agent pod runs
-	if err := o.Complete(agentKubeClient.CoreV1(), ctx, controllerContext.EventRecorder); err != nil {
+	if err := o.Complete(managementKubeClient.CoreV1(), ctx, controllerContext.EventRecorder); err != nil {
 		klog.Fatal(err)
 	}
 
@@ -134,8 +141,8 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		return err
 	}
 
-	// create a shared informer factory with specific namespace for the agent cluster.
-	namespacedAgentKubeInformerFactory := informers.NewSharedInformerFactoryWithOptions(agentKubeClient, 10*time.Minute, informers.WithNamespace(o.ComponentNamespace))
+	// create a shared informer factory with specific namespace for the management cluster.
+	namespacedManagementKubeInformerFactory := informers.NewSharedInformerFactoryWithOptions(managementKubeClient, 10*time.Minute, informers.WithNamespace(o.ComponentNamespace))
 
 	// load bootstrap client config and create bootstrap clients
 	bootstrapClientConfig, err := clientcmd.BuildConfigFromFlags("", o.BootstrapKubeconfig)
@@ -163,8 +170,8 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	hubKubeconfigSecretController := managedcluster.NewHubKubeconfigSecretController(
 		o.HubKubeconfigDir, o.ComponentNamespace, o.HubKubeconfigSecret,
 		// the hub kubeconfig secret stored in the cluster where the agent pod runs
-		agentKubeClient.CoreV1(),
-		namespacedAgentKubeInformerFactory.Core().V1().Secrets(),
+		managementKubeClient.CoreV1(),
+		namespacedManagementKubeInformerFactory.Core().V1().Secrets(),
 		controllerContext.EventRecorder,
 	)
 	go hubKubeconfigSecretController.Run(ctx, 1)
@@ -196,11 +203,10 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 			o.ClusterName, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
 			kubeconfigData,
 			// store the secret in the cluster where the agent pod runs
-			agentKubeClient.CoreV1(),
-			namespacedAgentKubeInformerFactory.Core().V1().Secrets(),
+			managementKubeClient.CoreV1(),
+			namespacedManagementKubeInformerFactory.Core().V1().Secrets(),
 			bootstrapKubeClient.CertificatesV1().CertificateSigningRequests(),
 			bootstrapInformerFactory.Certificates().V1().CertificateSigningRequests(),
-
 			controllerContext.EventRecorder,
 			controllerName,
 		)
@@ -208,7 +214,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		bootstrapCtx, stopBootstrap := context.WithCancel(ctx)
 
 		go bootstrapInformerFactory.Start(bootstrapCtx.Done())
-		go namespacedAgentKubeInformerFactory.Start(bootstrapCtx.Done())
+		go namespacedManagementKubeInformerFactory.Start(bootstrapCtx.Done())
 
 		go clientCertForHubController.Run(bootstrapCtx, 1)
 
@@ -272,11 +278,10 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		o.ClusterName, o.AgentName, o.ComponentNamespace, o.HubKubeconfigSecret,
 		kubeconfigData,
 		// store the secret in the cluster where the agent pod runs
-		agentKubeClient.CoreV1(),
-		namespacedAgentKubeInformerFactory.Core().V1().Secrets(),
+		managementKubeClient.CoreV1(),
+		namespacedManagementKubeInformerFactory.Core().V1().Secrets(),
 		hubKubeClient.CertificatesV1().CertificateSigningRequests(),
 		hubKubeInformerFactory.Certificates().V1().CertificateSigningRequests(),
-
 		controllerContext.EventRecorder,
 		controllerName,
 	)
@@ -344,8 +349,8 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 			o.AgentName,
 			kubeconfigData,
 			// TODO(zhujian7): By now, we only support all addon agents running on the managed cluster.
-			// In the future we need to maintain the hub cluster kubeconfig secret on the **agent**
-			// cluster when there is an appropriate way to deploy addon agents on the agent cluster.
+			// In the future we need to maintain the hub cluster kubeconfig secret on the **management**
+			// cluster when there is an appropriate way to deploy addon agents on the management cluster.
 			spokeKubeClient,
 			hubKubeInformerFactory.Certificates().V1().CertificateSigningRequests(),
 			addOnInformerFactory.Addon().V1alpha1().ManagedClusterAddOns(),
@@ -357,7 +362,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	go hubKubeInformerFactory.Start(ctx.Done())
 	go hubClusterInformerFactory.Start(ctx.Done())
 	go spokeKubeInformerFactory.Start(ctx.Done())
-	go namespacedAgentKubeInformerFactory.Start(ctx.Done())
+	go namespacedManagementKubeInformerFactory.Start(ctx.Done())
 	go spokeClusterInformerFactory.Start(ctx.Done())
 	go addOnInformerFactory.Start(ctx.Done())
 
