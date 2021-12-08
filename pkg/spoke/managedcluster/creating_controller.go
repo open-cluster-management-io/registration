@@ -20,8 +20,12 @@ import (
 // well-known anonymous user
 const anonymous = "system:anonymous"
 
-// CreatingControllerSyncInterval is exposed so that integration tests can crank up the controller sync speed.
-var CreatingControllerSyncInterval = 60 * time.Minute
+var (
+	// CreatingControllerSyncInterval is exposed so that integration tests can crank up the controller sync speed.
+	CreatingControllerSyncInterval = 60 * time.Minute
+	// LeaseDurationSeconds is lease update time interval
+	LeaseDurationSeconds = 60
+)
 
 // managedClusterCreatingController creates a ManagedCluster on hub cluster during the spoke agent bootstrap phase
 type managedClusterCreatingController struct {
@@ -67,6 +71,9 @@ func (c *managedClusterCreatingController) sync(ctx context.Context, syncCtx fac
 	managedCluster := &clusterv1.ManagedCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: c.clusterName,
+		},
+		Spec: clusterv1.ManagedClusterSpec{
+			LeaseDurationSeconds: int32(LeaseDurationSeconds),
 		},
 	}
 
