@@ -27,7 +27,7 @@ import (
 const leaseDurationTimes = 5
 
 var (
-	// LeaseDurationSeconds references pkg/spoke/managedcluster/creating_controller.go
+	// LeaseDurationSeconds is lease update time interval
 	LeaseDurationSeconds = 60
 )
 
