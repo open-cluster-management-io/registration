@@ -18,3 +18,7 @@ rules:
 - apiGroups: ["addon.open-cluster-management.io"]
   resources: ["managedclusteraddons/status"]
   verbs: ["patch", "update"]
+# Allow agent to control the lifecycle of addonplacementscores
+- apiGroups: ["cluster.open-cluster-management.io"]
+  resources: ["addonplacementscores"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
