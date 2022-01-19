@@ -58,6 +58,15 @@ var testNamespace string
 
 var authn *util.TestAuthn
 
+// detachedTestEnv, detachedCfg and detachedKubeClient will be used in Detached mode.
+// for klusterlet, it represents the managed cluster.
+var (
+	detachedTestEnv             *envtest.Environment
+	detachedCfg                 *rest.Config
+	detachedKubeClient          kubernetes.Interface
+	detachedSpokeKubeconfigFile string
+)
+
 func TestIntegration(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "Integration Suite", []ginkgo.Reporter{printer.NewlineReporter{}})
@@ -134,6 +143,32 @@ var _ = ginkgo.BeforeSuite(func(done ginkgo.Done) {
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	gomega.Expect(clusterClient).ToNot(gomega.BeNil())
 
+	// prepare cluster for detached mode
+	{
+		// start a local kube-apiserver as the hub/managed cluster for Detached mode.
+		detachedTestEnv = &envtest.Environment{
+			ErrorIfCRDPathMissing: true,
+			CRDDirectoryPaths: []string{
+				// filepath.Join(".", "deploy", "hub"),
+				filepath.Join(".", "deploy", "spoke"),
+			},
+		}
+		detachedConfig, err := detachedTestEnv.Start()
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		gomega.Expect(detachedConfig).ToNot(gomega.BeNil())
+
+		detachedCfg = detachedConfig
+		gomega.Expect(detachedCfg).ToNot(gomega.BeNil())
+
+		detachedKubeClient, err = kubernetes.NewForConfig(detachedCfg)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+		gomega.Expect(detachedKubeClient).ToNot(gomega.BeNil())
+
+		detachedSpokeKubeconfigFile = path.Join(util.TestDir, "detached", "spoke-kubeconfig")
+		util.TranslateKubeConfiguration(detachedCfg, detachedSpokeKubeconfigFile)
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+	}
+
 	// prepare test namespace
 	nsBytes, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	if err != nil {
@@ -160,6 +195,9 @@ var _ = ginkgo.AfterSuite(func() {
 	ginkgo.By("tearing down the test environment")
 
 	err := testEnv.Stop()
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+	err = detachedTestEnv.Stop()
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 	err = os.RemoveAll(util.TestDir)
