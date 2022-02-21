@@ -609,3 +609,39 @@ func RunAgent(name string, opt spoke.SpokeAgentOptions, cfg *rest.Config) contex
 
 	return cancel
 }
+
+// TranslateKubeConfiguration translates the rest.Config to kubeconfig file,
+// and write it to file.
+func TranslateKubeConfiguration(c *rest.Config, filePath string) error {
+	namespace := "default"
+
+	clusters := make(map[string]*clientcmdapi.Cluster)
+	clusters["default-cluster"] = &clientcmdapi.Cluster{
+		Server:                   c.Host,
+		CertificateAuthorityData: c.CAData,
+	}
+
+	contexts := make(map[string]*clientcmdapi.Context)
+	contexts["default-context"] = &clientcmdapi.Context{
+		Cluster:   "default-cluster",
+		Namespace: namespace,
+		AuthInfo:  namespace,
+	}
+
+	authinfos := make(map[string]*clientcmdapi.AuthInfo)
+	authinfos[namespace] = &clientcmdapi.AuthInfo{
+		Token:                 c.BearerToken,
+		ClientCertificateData: c.CertData,
+		ClientKeyData:         c.KeyData,
+	}
+
+	clientConfig := clientcmdapi.Config{
+		Kind:           "Config",
+		APIVersion:     "v1",
+		Clusters:       clusters,
+		Contexts:       contexts,
+		CurrentContext: "default-context",
+		AuthInfos:      authinfos,
+	}
+	return clientcmd.WriteToFile(clientConfig, filePath)
+}
