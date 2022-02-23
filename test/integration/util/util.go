@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo"
+	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 
 	clusterclientset "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
@@ -42,6 +43,7 @@ import (
 const (
 	TestLeaseDurationSeconds = 1
 	TestDir                  = "/tmp/registration-integration-test"
+	ClusterSetLabel          = "cluster.open-cluster-management.io/clusterset"
 )
 
 var (
@@ -608,4 +610,19 @@ func RunAgent(name string, opt spoke.SpokeAgentOptions, cfg *rest.Config) contex
 	})
 
 	return cancel
+}
+
+func CheckManagedClusterSetSpec(clusterset *clusterv1beta1.ManagedClusterSet) bool {
+	if clusterset.Spec.ClusterSelector.SelectorType != clusterv1beta1.ExclusiveLabel {
+		return false
+	}
+
+	if clusterset.Spec.ClusterSelector.ExclusiveLabel.Key != ClusterSetLabel {
+		return false
+	}
+
+	if clusterset.Spec.ClusterSelector.ExclusiveLabel.Value != clusterset.Name {
+		return false
+	}
+	return true
 }

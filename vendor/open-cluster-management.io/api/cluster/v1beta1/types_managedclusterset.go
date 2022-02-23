@@ -38,6 +38,41 @@ type ManagedClusterSet struct {
 
 // ManagedClusterSetSpec describes the attributes of the ManagedClusterSet
 type ManagedClusterSetSpec struct {
+	// ClusterSelector represents a selector of ManagedClusters
+	// +optional
+	ClusterSelector ManagedClusterSelector `json:"clusterSelector,omitempty"`
+}
+
+// ManagedClusterSelector represents a selector of ManagedClusters
+type ManagedClusterSelector struct {
+	// SelectorType could only be ExclusiveLabel now, will support more SelectorType later
+	// "ExclusiveLabel" means to use a particular cluster label. It guarantees that clustersets with same label key are exclusive
+	// +kubebuilder:validation:Enum=ExclusiveLabel
+	// +kubebuilder:default:="ExclusiveLabel"
+	// +optional
+	SelectorType SelectorType `json:"selectorType"`
+
+	// ExclusiveLabel defines one label which clusterset could use to select target managedClusters. In this way, we will:
+	// 1. Guarantee clustersets with same label key are exclusive
+	// 2. Enable additional permission check when cluster joining/leaving a clusterset.
+	// Currentlly, When a user want to add a label "cluster.open-cluster-management.io/clusterset:<ManagedClusterSet Name>" for managedCluster,
+	// he/she should have "create" permission for subresource "managedclusters/label" with name "cluster.open-cluster-management.io/clusterset:<ManagedClusterSet Name>".
+	// +optional
+	ExclusiveLabel *ManagedClusterLabel `json:"exclusiveLabel,omitempty"`
+}
+
+type SelectorType string
+
+const (
+	ExclusiveLabel SelectorType = "ExclusiveLabel"
+)
+
+//ManagedClusterLabel defines one label of managedCluster
+type ManagedClusterLabel struct {
+	//The key must be cluster.open-cluster-management.io/clusterset, it will be set by default if unspecified
+	Key string `json:"key"`
+	// The value must be <clusterSet name>, it will be set by default if unspecified
+	Value string `json:"value"`
 }
 
 // ManagedClusterSetStatus represents the current status of the ManagedClusterSet.

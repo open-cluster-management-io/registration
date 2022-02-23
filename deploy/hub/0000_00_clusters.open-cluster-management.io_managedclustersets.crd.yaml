@@ -110,6 +110,27 @@ spec:
             spec:
               description: Spec defines the attributes of the ManagedClusterSet
               type: object
+              properties:
+                clusterSelector:
+                  description: ClusterSelector represents a selector of ManagedClusters
+                  type: object
+                  properties:
+                    exclusiveLabel:
+                      description: 'ExclusiveLabel defines one label which clusterset could use to select target managedClusters. In this way, we will: 1. Guarantee clustersets with same label key are exclusive 2. Enable additional permission check when cluster joining/leaving a clusterset. Currentlly, When a user want to add a label "cluster.open-cluster-management.io/clusterset:<ManagedClusterSet Name>" for managedCluster, he/she should have "create" permission for subresource "managedclusters/label" with name "cluster.open-cluster-management.io/clusterset:<ManagedClusterSet Name>".'
+                      type: object
+                      properties:
+                        key:
+                          description: The key must be cluster.open-cluster-management.io/clusterset, it will be set by default if unspecified
+                          type: string
+                        value:
+                          description: The value must be <clusterSet name>, it will be set by default if unspecified
+                          type: string
+                    selectorType:
+                      description: SelectorType could only be ExclusiveLabel now, will support more SelectorType later "ExclusiveLabel" means to use a particular cluster label. It guarantees that clustersets with same label key are exclusive
+                      type: string
+                      default: ExclusiveLabel
+                      enum:
+                        - ExclusiveLabel
             status:
               description: Status represents the current status of the ManagedClusterSet
               type: object

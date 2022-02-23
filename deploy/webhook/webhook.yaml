@@ -50,6 +50,7 @@ webhooks:
     - "*"
     resources:
     - managedclusters
+    - managedclustersets
   admissionReviewVersions: ["v1beta1"]
   sideEffects: None
   timeoutSeconds: 3

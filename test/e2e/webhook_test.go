@@ -12,6 +12,7 @@ import (
 	clusterv1client "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	"open-cluster-management.io/registration/test/integration/util"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -34,7 +35,11 @@ const (
 
 var _ = ginkgo.Describe("Admission webhook", func() {
 	var admissionName string
-
+	managedClusterSetName := "cs1"
+	ginkgo.AfterEach(func() {
+		err := clusterClient.ClusterV1beta1().ManagedClusterSets().Delete(context.Background(), managedClusterSetName, metav1.DeleteOptions{})
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	})
 	ginkgo.BeforeEach(func() {
 		// make sure the api service v1.admission.cluster.open-cluster-management.io is available
 		gomega.Eventually(func() bool {
@@ -493,6 +498,182 @@ var _ = ginkgo.Describe("Admission webhook", func() {
 				gomega.Expect(cleanupClusterClient(saNamespace, sa)).ToNot(gomega.HaveOccurred())
 			})
 		})
+
+	})
+
+	ginkgo.Context("ManagedClusterSet", func() {
+		ginkgo.It("create cluster set with selectortype but nil ExclusiveLabel", func() {
+			ginkgo.By("Create a ManagedClusterSet with ExclusiveLabel and no key and no value set")
+			managedClusterSet := &clusterv1beta1.ManagedClusterSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: managedClusterSetName,
+				},
+				Spec: clusterv1beta1.ManagedClusterSetSpec{
+					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
+						SelectorType:   clusterv1beta1.ExclusiveLabel,
+						ExclusiveLabel: &clusterv1beta1.ManagedClusterLabel{},
+					},
+				},
+			}
+			_, err := clusterClient.ClusterV1beta1().ManagedClusterSets().Create(context.Background(), managedClusterSet, metav1.CreateOptions{})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			managedClusterSet, err = clusterClient.ClusterV1beta1().ManagedClusterSets().Get(context.Background(), managedClusterSetName, metav1.GetOptions{})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			defaultValueSet := util.CheckManagedClusterSetSpec(managedClusterSet)
+			gomega.Expect(defaultValueSet).To(gomega.Equal(true))
+		})
+
+		ginkgo.It("create cluster set with ExclusiveLabel key, and nil selectortype", func() {
+			ginkgo.By("Create a ManagedClusterSet with ExclusiveLabel and no key and no value set")
+			managedClusterSet := &clusterv1beta1.ManagedClusterSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: managedClusterSetName,
+				},
+				Spec: clusterv1beta1.ManagedClusterSetSpec{
+					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
+						ExclusiveLabel: &clusterv1beta1.ManagedClusterLabel{
+							Key: util.ClusterSetLabel,
+						},
+					},
+				},
+			}
+			_, err := clusterClient.ClusterV1beta1().ManagedClusterSets().Create(context.Background(), managedClusterSet, metav1.CreateOptions{})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			managedClusterSet, err = clusterClient.ClusterV1beta1().ManagedClusterSets().Get(context.Background(), managedClusterSetName, metav1.GetOptions{})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			defaultValueSet := util.CheckManagedClusterSetSpec(managedClusterSet)
+			gomega.Expect(defaultValueSet).To(gomega.Equal(true))
+		})
+
+		ginkgo.It("create cluster set with ExclusiveLabel value, and nil selectortype", func() {
+			ginkgo.By("Create a ManagedClusterSet with ExclusiveLabel and no key and no value set")
+			managedClusterSet := &clusterv1beta1.ManagedClusterSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: managedClusterSetName,
+				},
+				Spec: clusterv1beta1.ManagedClusterSetSpec{
+					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
+						ExclusiveLabel: &clusterv1beta1.ManagedClusterLabel{
+							Key: util.ClusterSetLabel,
+						},
+					},
+				},
+			}
+			_, err := clusterClient.ClusterV1beta1().ManagedClusterSets().Create(context.Background(), managedClusterSet, metav1.CreateOptions{})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			managedClusterSet, err = clusterClient.ClusterV1beta1().ManagedClusterSets().Get(context.Background(), managedClusterSetName, metav1.GetOptions{})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			defaultValueSet := util.CheckManagedClusterSetSpec(managedClusterSet)
+			gomega.Expect(defaultValueSet).To(gomega.Equal(true))
+		})
+
+		ginkgo.It("create cluster set with ExclusiveLabel key and value, and nil selectortype", func() {
+			ginkgo.By("Create a ManagedClusterSet with ExclusiveLabel and no key and no value set")
+			managedClusterSet := &clusterv1beta1.ManagedClusterSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: managedClusterSetName,
+				},
+				Spec: clusterv1beta1.ManagedClusterSetSpec{
+					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
+						ExclusiveLabel: &clusterv1beta1.ManagedClusterLabel{
+							Key:   util.ClusterSetLabel,
+							Value: managedClusterSetName,
+						},
+					},
+				},
+			}
+			_, err := clusterClient.ClusterV1beta1().ManagedClusterSets().Create(context.Background(), managedClusterSet, metav1.CreateOptions{})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			managedClusterSet, err = clusterClient.ClusterV1beta1().ManagedClusterSets().Get(context.Background(), managedClusterSetName, metav1.GetOptions{})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			defaultValueSet := util.CheckManagedClusterSetSpec(managedClusterSet)
+			gomega.Expect(defaultValueSet).To(gomega.Equal(true))
+		})
+
+		ginkgo.It("create cluster set with wrong ExclusiveLabel key, and nil selectortype", func() {
+			ginkgo.By("Create a ManagedClusterSet with ExclusiveLabel and no key and no value set")
+			managedClusterSet := &clusterv1beta1.ManagedClusterSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: managedClusterSetName,
+				},
+				Spec: clusterv1beta1.ManagedClusterSetSpec{
+					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
+						ExclusiveLabel: &clusterv1beta1.ManagedClusterLabel{
+							Key:   "otherkey",
+							Value: managedClusterSetName,
+						},
+					},
+				},
+			}
+			_, err := clusterClient.ClusterV1beta1().ManagedClusterSets().Create(context.Background(), managedClusterSet, metav1.CreateOptions{})
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
+
+		ginkgo.It("create cluster set with wrong ExclusiveLabel value, and nil selectortype", func() {
+			ginkgo.By("Create a ManagedClusterSet with ExclusiveLabel and no key and no value set")
+			managedClusterSet := &clusterv1beta1.ManagedClusterSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: managedClusterSetName,
+				},
+				Spec: clusterv1beta1.ManagedClusterSetSpec{
+					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
+						ExclusiveLabel: &clusterv1beta1.ManagedClusterLabel{
+							Value: "notSetName",
+						},
+					},
+				},
+			}
+			_, err := clusterClient.ClusterV1beta1().ManagedClusterSets().Create(context.Background(), managedClusterSet, metav1.CreateOptions{})
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
+
+		ginkgo.It("create cluster set with wrong ExclusiveLabel key, and selectortype", func() {
+			ginkgo.By("Create a ManagedClusterSet with ExclusiveLabel and no key and no value set")
+			managedClusterSet := &clusterv1beta1.ManagedClusterSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: managedClusterSetName,
+				},
+				Spec: clusterv1beta1.ManagedClusterSetSpec{
+					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
+						SelectorType: clusterv1beta1.ExclusiveLabel,
+						ExclusiveLabel: &clusterv1beta1.ManagedClusterLabel{
+							Key:   "otherkey",
+							Value: managedClusterSetName,
+						},
+					},
+				},
+			}
+			_, err := clusterClient.ClusterV1beta1().ManagedClusterSets().Create(context.Background(), managedClusterSet, metav1.CreateOptions{})
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
+
+		ginkgo.It("create cluster set with wrong ExclusiveLabel value, and selectortype", func() {
+			ginkgo.By("Create a ManagedClusterSet with ExclusiveLabel and no key and no value set")
+			managedClusterSet := &clusterv1beta1.ManagedClusterSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: managedClusterSetName,
+				},
+				Spec: clusterv1beta1.ManagedClusterSetSpec{
+					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
+						SelectorType: clusterv1beta1.ExclusiveLabel,
+						ExclusiveLabel: &clusterv1beta1.ManagedClusterLabel{
+							Value: "notSetName",
+						},
+					},
+				},
+			}
+			_, err := clusterClient.ClusterV1beta1().ManagedClusterSets().Create(context.Background(), managedClusterSet, metav1.CreateOptions{})
+			gomega.Expect(err).To(gomega.HaveOccurred())
+		})
+
 	})
 
 	ginkgo.Context("ManagedClusterSetBinding", func() {

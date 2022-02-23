@@ -3,6 +3,7 @@ module open-cluster-management.io/registration
 go 1.17
 
 require (
+	github.com/mattbaird/jsonpatch v0.0.0-20200820163806-098863c1fc24
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.17.0
 	github.com/openshift/api v0.0.0-20211209135129-c58d9f695577
@@ -22,6 +23,8 @@ require (
 	open-cluster-management.io/api v0.5.1-0.20220107041310-9303b90b6ade
 	sigs.k8s.io/controller-runtime v0.11.0
 )
+
+replace open-cluster-management.io/api => ../api
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect

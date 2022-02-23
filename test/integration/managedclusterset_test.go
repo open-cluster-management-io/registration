@@ -12,16 +12,18 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
-)
-
-const (
-	clusterSetLabel = "cluster.open-cluster-management.io/clusterset"
+	"open-cluster-management.io/registration/test/integration/util"
 )
 
 var _ = ginkgo.Describe("ManagedClusterSet", func() {
+	managedClusterSetName := "cs1"
+	ginkgo.AfterEach(func() {
+		err := clusterClient.ClusterV1beta1().ManagedClusterSets().Delete(context.Background(), managedClusterSetName, metav1.DeleteOptions{})
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	})
+
 	ginkgo.It("should create cluster set and keep it synced successfully ", func() {
 		ginkgo.By("Create a ManagedClusterSet")
-		managedClusterSetName := "cs1"
 		managedClusterSet := &clusterv1beta1.ManagedClusterSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: managedClusterSetName,
@@ -58,7 +60,7 @@ var _ = ginkgo.Describe("ManagedClusterSet", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: managedClusterName,
 				Labels: map[string]string{
-					clusterSetLabel: managedClusterSetName,
+					util.ClusterSetLabel: managedClusterSetName,
 				},
 			},
 			Spec: clusterv1.ManagedClusterSpec{
@@ -104,7 +106,7 @@ var _ = ginkgo.Describe("ManagedClusterSet", func() {
 		managedCluster, err = clusterClient.ClusterV1().ManagedClusters().Get(context.Background(), managedCluster.Name, metav1.GetOptions{})
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		managedCluster.Labels = map[string]string{
-			clusterSetLabel: "cs2",
+			util.ClusterSetLabel: "cs2",
 		}
 
 		gomega.Eventually(func() error {

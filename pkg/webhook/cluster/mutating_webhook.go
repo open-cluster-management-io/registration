@@ -7,23 +7,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mattbaird/jsonpatch"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
+	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	"open-cluster-management.io/registration/pkg/helpers"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 )
 
 var nowFunc = time.Now
-
-type jsonPatchOperation struct {
-	Operation string      `json:"op"`
-	Path      string      `json:"path"`
-	Value     interface{} `json:"value,omitempty"`
-}
 
 // ManagedClusterMutatingAdmissionHook will mutate the creating/updating managedcluster request.
 type ManagedClusterMutatingAdmissionHook struct{}
@@ -42,22 +39,137 @@ func (a *ManagedClusterMutatingAdmissionHook) MutatingResource() (schema.GroupVe
 // Admit is called by generic-admission-server when the registered REST resource above is called with an admission request.
 func (a *ManagedClusterMutatingAdmissionHook) Admit(req *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
 	klog.V(4).Infof("mutate %q operation for object %q", req.Operation, req.Object)
-
 	status := &admissionv1beta1.AdmissionResponse{
 		Allowed: true,
 	}
-
-	// only mutate the request for managedcluster
-	if req.Resource.Group != "cluster.open-cluster-management.io" ||
-		req.Resource.Resource != "managedclusters" {
-		return status
-	}
-
 	// only mutate create and update operation
 	if req.Operation != admissionv1beta1.Create && req.Operation != admissionv1beta1.Update {
 		return status
 	}
 
+	// only mutate the request for managedcluster
+	if req.Resource.Group != "cluster.open-cluster-management.io" {
+		return status
+	}
+
+	switch req.Resource.Resource {
+	case "managedclusters":
+		return a.processManagedCluster(req)
+	case "managedclustersets":
+		return a.processManagedClusterSet(req)
+	}
+
+	return status
+}
+
+// processManagedClusterSet handle ManagedClusterSet obj
+func (a *ManagedClusterMutatingAdmissionHook) processManagedClusterSet(req *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
+	status := &admissionv1beta1.AdmissionResponse{
+		Allowed: true,
+	}
+
+	var jsonPatches []jsonpatch.JsonPatchOperation
+
+	// set default value for managedClusterset.spec.clusterSelector
+	clusterSetJsonPatches, status := a.procesManagedClusterSetSpec(req.Object)
+	if !status.Allowed {
+		return status
+	}
+	jsonPatches = append(jsonPatches, clusterSetJsonPatches...)
+
+	if len(jsonPatches) == 0 {
+		return status
+	}
+
+	patch, err := json.Marshal(jsonPatches)
+	if err != nil {
+		status.Allowed = false
+		status.Result = &metav1.Status{
+			Status: metav1.StatusFailure, Code: http.StatusInternalServerError, Reason: metav1.StatusReasonInternalError,
+			Message: err.Error(),
+		}
+		return status
+	}
+
+	status.Patch = patch
+	pt := admissionv1beta1.PatchTypeJSONPatch
+	status.PatchType = &pt
+	return status
+}
+
+func (a *ManagedClusterMutatingAdmissionHook) procesManagedClusterSetSpec(clusterSetObj runtime.RawExtension) ([]jsonpatch.JsonPatchOperation, *admissionv1beta1.AdmissionResponse) {
+	status := &admissionv1beta1.AdmissionResponse{
+		Allowed: true,
+	}
+	clusterSet := &clusterv1beta1.ManagedClusterSet{}
+	if err := json.Unmarshal(clusterSetObj.Raw, clusterSet); err != nil {
+		status.Allowed = false
+		status.Result = &metav1.Status{
+			Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
+			Message: err.Error(),
+		}
+		return nil, status
+	}
+
+	newClusterSet := clusterSet.DeepCopy()
+
+	if clusterSet.Spec.ClusterSelector.SelectorType == "" {
+		newClusterSet.Spec.ClusterSelector.SelectorType = clusterv1beta1.ExclusiveLabel
+	}
+
+	if clusterSet.Spec.ClusterSelector.ExclusiveLabel != nil {
+		// clusterset.Spec.ClusterSelector.ExclusiveLabel.Key can only be "" or "cluster.open-cluster-management.io/clusterset"
+		if clusterSet.Spec.ClusterSelector.ExclusiveLabel.Key != "" && clusterSet.Spec.ClusterSelector.ExclusiveLabel.Key != clusterSetLabel {
+			status.Allowed = false
+			status.Result = &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusInternalServerError, Reason: metav1.StatusReasonInternalError,
+				Message: fmt.Sprintf("The spec.clusterSelector.exclusiveLabel.key must be %q.", clusterSetLabel),
+			}
+			return nil, status
+		}
+		// clusterset.Spec.ClusterSelector.ExclusiveLabel.Value can only be "" or clusterset name
+		if clusterSet.Spec.ClusterSelector.ExclusiveLabel.Value != "" && clusterSet.Spec.ClusterSelector.ExclusiveLabel.Value != clusterSet.Name {
+			status.Allowed = false
+			status.Result = &metav1.Status{
+				Status: metav1.StatusFailure, Code: http.StatusInternalServerError, Reason: metav1.StatusReasonInternalError,
+				Message: fmt.Sprintf("The spec.clusterSelector.ExclusiveLabel.value must be %q.", clusterSet.Name),
+			}
+			return nil, status
+		}
+	}
+
+	newClusterSet.Spec.ClusterSelector.ExclusiveLabel = &clusterv1beta1.ManagedClusterLabel{
+		Key:   clusterSetLabel,
+		Value: clusterSet.Name,
+	}
+
+	newClusterSetObj, err := json.Marshal(newClusterSet)
+	if err != nil {
+		status.Allowed = false
+		status.Result = &metav1.Status{
+			Status: metav1.StatusFailure, Code: http.StatusInternalServerError, Reason: metav1.StatusReasonInternalError,
+			Message: err.Error(),
+		}
+		return nil, status
+	}
+
+	res, err := jsonpatch.CreatePatch(clusterSetObj.Raw, newClusterSetObj)
+	if err != nil {
+		status.Allowed = false
+		status.Result = &metav1.Status{
+			Status: metav1.StatusFailure, Code: http.StatusInternalServerError, Reason: metav1.StatusReasonInternalError,
+			Message: fmt.Sprintf("Create patch error, Error:  %v", err.Error()),
+		}
+		return nil, status
+	}
+	return res, status
+}
+
+//processManagedCluster handle managedCluster obj
+func (a *ManagedClusterMutatingAdmissionHook) processManagedCluster(req *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
+	status := &admissionv1beta1.AdmissionResponse{
+		Allowed: true,
+	}
 	managedCluster := &clusterv1.ManagedCluster{}
 	if err := json.Unmarshal(req.Object.Raw, managedCluster); err != nil {
 		status.Allowed = false
@@ -68,7 +180,7 @@ func (a *ManagedClusterMutatingAdmissionHook) Admit(req *admissionv1beta1.Admiss
 		return status
 	}
 
-	var jsonPatches []jsonPatchOperation
+	var jsonPatches []jsonpatch.JsonPatchOperation
 
 	// set timeAdded of taint if it is nil and reset it if it is modified
 	taintJsonPatches, status := a.processTaints(managedCluster, req.OldObject.Raw)
@@ -98,7 +210,7 @@ func (a *ManagedClusterMutatingAdmissionHook) Admit(req *admissionv1beta1.Admiss
 }
 
 // processTaints generates json patched for cluster taints
-func (a *ManagedClusterMutatingAdmissionHook) processTaints(managedCluster *clusterv1.ManagedCluster, oldManagedClusterRaw []byte) ([]jsonPatchOperation, *admissionv1beta1.AdmissionResponse) {
+func (a *ManagedClusterMutatingAdmissionHook) processTaints(managedCluster *clusterv1.ManagedCluster, oldManagedClusterRaw []byte) ([]jsonpatch.JsonPatchOperation, *admissionv1beta1.AdmissionResponse) {
 	status := &admissionv1beta1.AdmissionResponse{
 		Allowed: true,
 	}
@@ -122,7 +234,7 @@ func (a *ManagedClusterMutatingAdmissionHook) processTaints(managedCluster *clus
 	}
 
 	var invalidTaints []string
-	var jsonPatches []jsonPatchOperation
+	var jsonPatches []jsonpatch.JsonPatchOperation
 	now := metav1.NewTime(nowFunc())
 	for index, taint := range managedCluster.Spec.Taints {
 		originalTaint := helpers.FindTaintByKey(oldManagedCluster, taint.Key)
@@ -167,8 +279,8 @@ func (a *ManagedClusterMutatingAdmissionHook) Initialize(kubeClientConfig *rest.
 	return nil
 }
 
-func newTaintTimeAddedJsonPatch(index int, timeAdded time.Time) jsonPatchOperation {
-	return jsonPatchOperation{
+func newTaintTimeAddedJsonPatch(index int, timeAdded time.Time) jsonpatch.JsonPatchOperation {
+	return jsonpatch.JsonPatchOperation{
 		Operation: "replace",
 		Path:      fmt.Sprintf("/spec/taints/%d/timeAdded", index),
 		Value:     timeAdded.UTC().Format(time.RFC3339),

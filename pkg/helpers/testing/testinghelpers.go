@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	workapiv1 "open-cluster-management.io/api/work/v1"
 
@@ -57,6 +59,28 @@ func NewFakeSyncContext(t *testing.T, clusterName string) *FakeSyncContext {
 		recorder:  eventstesting.NewTestingEventRecorder(t),
 		queue:     workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
+}
+
+func NewManagedClusterSet(name string, terminating bool, SelectorType clusterv1beta1.SelectorType, key, value string) *clusterv1beta1.ManagedClusterSet {
+	clusterSet := &clusterv1beta1.ManagedClusterSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+	clusterSet.Spec.ClusterSelector.SelectorType = SelectorType
+	if key != "" || value != "" {
+		clusterSet.Spec.ClusterSelector.ExclusiveLabel = &clusterv1beta1.ManagedClusterLabel{
+			Key:   key,
+			Value: value,
+		}
+	}
+
+	if terminating {
+		now := metav1.Now()
+		clusterSet.DeletionTimestamp = &now
+	}
+
+	return clusterSet
 }
 
 func NewManagedCluster() *clusterv1.ManagedCluster {
