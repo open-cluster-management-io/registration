@@ -219,7 +219,7 @@ var _ = ginkgo.Describe("Admission webhook", func() {
 				gomega.Expect(cleanupClusterClient(saNamespace, sa)).ToNot(gomega.HaveOccurred())
 			})
 
-			ginkgo.It("Should accept the request when creating a managed cluster with clusterset specified by authorized user", func() {
+			ginkgo.It("Should accept the request when creating a managed cluster with clusterset specified by authorized(join permission) user", func() {
 				clusterSetName := fmt.Sprintf("webhook-spoke-%s", rand.String(6))
 				ginkgo.By(fmt.Sprintf("create a managed cluster set %q", clusterSetName))
 
@@ -247,6 +247,93 @@ var _ = ginkgo.Describe("Admission webhook", func() {
 						APIGroups: []string{"cluster.open-cluster-management.io"},
 						Resources: []string{"managedclustersets/join"},
 						Verbs:     []string{"create"},
+					},
+				}, nil)
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+				managedCluster := newManagedCluster(clusterName, false, validURL)
+				managedCluster.Labels = map[string]string{
+					clusterSetLabel: clusterSetName,
+				}
+				_, err = authorizedClient.ClusterV1().ManagedClusters().Create(context.TODO(), managedCluster, metav1.CreateOptions{})
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+				gomega.Expect(deleteManageClusterAndRelatedNamespace(clusterName)).ToNot(gomega.HaveOccurred())
+				gomega.Expect(cleanupClusterClient(saNamespace, sa)).ToNot(gomega.HaveOccurred())
+			})
+
+			ginkgo.It("Should accept the request when creating a managed cluster with clusterset specified by authorized(all label permission) user", func() {
+				clusterSetName := fmt.Sprintf("webhook-spoke-%s", rand.String(6))
+				ginkgo.By(fmt.Sprintf("create a managed cluster set %q", clusterSetName))
+
+				managedClusterSet := &clusterv1beta1.ManagedClusterSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: clusterSetName,
+					},
+				}
+
+				_, err := clusterClient.ClusterV1beta1().ManagedClusterSets().Create(context.TODO(), managedClusterSet, metav1.CreateOptions{})
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				sa := fmt.Sprintf("webhook-sa-%s", rand.String(6))
+				clusterName := fmt.Sprintf("webhook-spoke-%s", rand.String(6))
+
+				ginkgo.By(fmt.Sprintf("create a managed cluster %q with unauthorized service account %q", clusterName, sa))
+
+				authorizedClient, err := buildClusterClient(saNamespace, sa, []rbacv1.PolicyRule{
+					{
+						APIGroups: []string{"cluster.open-cluster-management.io"},
+						Resources: []string{"managedclusters"},
+						Verbs:     []string{"create", "get", "update"},
+					},
+					{
+						APIGroups: []string{"cluster.open-cluster-management.io"},
+						Resources: []string{"managedclusters/label"},
+						Verbs:     []string{"create"},
+					},
+				}, nil)
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+				managedCluster := newManagedCluster(clusterName, false, validURL)
+				managedCluster.Labels = map[string]string{
+					clusterSetLabel: clusterSetName,
+				}
+				_, err = authorizedClient.ClusterV1().ManagedClusters().Create(context.TODO(), managedCluster, metav1.CreateOptions{})
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+				gomega.Expect(deleteManageClusterAndRelatedNamespace(clusterName)).ToNot(gomega.HaveOccurred())
+				gomega.Expect(cleanupClusterClient(saNamespace, sa)).ToNot(gomega.HaveOccurred())
+			})
+
+			ginkgo.It("Should accept the request when creating a managed cluster with clusterset specified by authorized(clusterset label permission) user", func() {
+				clusterSetName := fmt.Sprintf("webhook-spoke-%s", rand.String(6))
+				ginkgo.By(fmt.Sprintf("create a managed cluster set %q", clusterSetName))
+
+				managedClusterSet := &clusterv1beta1.ManagedClusterSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: clusterSetName,
+					},
+				}
+
+				_, err := clusterClient.ClusterV1beta1().ManagedClusterSets().Create(context.TODO(), managedClusterSet, metav1.CreateOptions{})
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+				sa := fmt.Sprintf("webhook-sa-%s", rand.String(6))
+				clusterName := fmt.Sprintf("webhook-spoke-%s", rand.String(6))
+
+				ginkgo.By(fmt.Sprintf("create a managed cluster %q with unauthorized service account %q", clusterName, sa))
+
+				authorizedClient, err := buildClusterClient(saNamespace, sa, []rbacv1.PolicyRule{
+					{
+						APIGroups: []string{"cluster.open-cluster-management.io"},
+						Resources: []string{"managedclusters"},
+						Verbs:     []string{"create", "get", "update"},
+					},
+					{
+						APIGroups:     []string{"cluster.open-cluster-management.io"},
+						Resources:     []string{"managedclusters/label"},
+						ResourceNames: []string{"cluster.open-cluster-management.io/clusterset:*"},
+						Verbs:         []string{"create"},
 					},
 				}, nil)
 				gomega.Expect(err).ToNot(gomega.HaveOccurred())
@@ -299,10 +386,11 @@ var _ = ginkgo.Describe("Admission webhook", func() {
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(errors.IsForbidden(err)).Should(gomega.BeTrue())
 				gomega.Expect(err.Error()).Should(gomega.Equal(fmt.Sprintf(
-					"admission webhook \"%s\" denied the request: user \"system:serviceaccount:%s:%s\" cannot add/remove a ManagedCluster to/from ManagedClusterSet \"%s\"",
+					"admission webhook \"%s\" denied the request: user \"system:serviceaccount:%s:%s\" cannot add/remove the label %s:%s to/from ManagedCluster",
 					admissionName,
 					saNamespace,
 					sa,
+					clusterSetLabel,
 					clusterSetName,
 				)))
 
@@ -483,13 +571,13 @@ var _ = ginkgo.Describe("Admission webhook", func() {
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(errors.IsForbidden(err)).Should(gomega.BeTrue())
 				gomega.Expect(err.Error()).Should(gomega.Equal(fmt.Sprintf(
-					"admission webhook \"%s\" denied the request: user \"system:serviceaccount:%s:%s\" cannot add/remove a ManagedCluster to/from ManagedClusterSet \"%s\"",
+					"admission webhook \"%s\" denied the request: user \"system:serviceaccount:%s:%s\" cannot add/remove the label %s:%s to/from ManagedCluster",
 					admissionName,
 					saNamespace,
 					sa,
+					clusterSetLabel,
 					clusterSetName,
 				)))
-
 				gomega.Expect(cleanupClusterClient(saNamespace, sa)).ToNot(gomega.HaveOccurred())
 			})
 		})

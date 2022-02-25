@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
-	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	testinghelpers "open-cluster-management.io/registration/pkg/helpers/testing"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
@@ -27,11 +26,12 @@ var managedclustersSchema = metav1.GroupVersionResource{
 
 func TestManagedClusterValidate(t *testing.T) {
 	cases := []struct {
-		name                   string
-		request                *admissionv1beta1.AdmissionRequest
-		expectedResponse       *admissionv1beta1.AdmissionResponse
-		allowUpdateAcceptField bool
-		allowUpdateClusterSets map[string]bool
+		name                     string
+		request                  *admissionv1beta1.AdmissionRequest
+		expectedResponse         *admissionv1beta1.AdmissionResponse
+		allowUpdateAcceptField   bool
+		allowUpdateClusterLabels map[string]bool
+		allowJoinClusterSets     map[string]bool
 	}{
 		{
 			name: "validate non-managedclusters request",
@@ -67,6 +67,7 @@ func TestManagedClusterValidate(t *testing.T) {
 				Allowed: true,
 			},
 		},
+
 		{
 			name: "validate creating ManagedCluster with invalid fields",
 			request: &admissionv1beta1.AdmissionRequest{
@@ -157,12 +158,156 @@ func TestManagedClusterValidate(t *testing.T) {
 			request: &admissionv1beta1.AdmissionRequest{
 				Resource:  managedclustersSchema,
 				Operation: admissionv1beta1.Create,
-				Object:    newManagedClusterObjWithClientSet("clusterset1"),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
 			},
 			expectedResponse: &admissionv1beta1.AdmissionResponse{
 				Allowed: true,
 			},
-			allowUpdateClusterSets: map[string]bool{
+			allowUpdateClusterLabels: map[string]bool{
+				"cluster.open-cluster-management.io/clusterset:clusterset1": true,
+			},
+		},
+		{
+			name: "validate setting clusterset label without label permission",
+			request: &admissionv1beta1.AdmissionRequest{
+				Resource:  managedclustersSchema,
+				Operation: admissionv1beta1.Create,
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+			},
+			expectedResponse: &admissionv1beta1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: metav1.StatusFailure, Code: http.StatusForbidden, Reason: metav1.StatusReasonForbidden,
+					Message: "user \"\" cannot add/remove the label cluster.open-cluster-management.io/clusterset:clusterset1 to/from ManagedCluster",
+				},
+			},
+			allowUpdateClusterLabels: map[string]bool{
+				"cluster.open-cluster-management.io/clusterset:clusterset1": false,
+			},
+		},
+		{
+			name: "validate updating clusterset label using label permission",
+			request: &admissionv1beta1.AdmissionRequest{
+				Resource:  managedclustersSchema,
+				Operation: admissionv1beta1.Update,
+				OldObject: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset2",
+					},
+				),
+			},
+			expectedResponse: &admissionv1beta1.AdmissionResponse{
+				Allowed: true,
+			},
+			allowUpdateClusterLabels: map[string]bool{
+				"cluster.open-cluster-management.io/clusterset:clusterset1": true,
+				"cluster.open-cluster-management.io/clusterset:clusterset2": true,
+			},
+		},
+		{
+			name: "validate updating clusterset label without label permission",
+			request: &admissionv1beta1.AdmissionRequest{
+				Resource:  managedclustersSchema,
+				Operation: admissionv1beta1.Update,
+				OldObject: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset2",
+					},
+				),
+			},
+			expectedResponse: &admissionv1beta1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: metav1.StatusFailure, Code: http.StatusForbidden, Reason: metav1.StatusReasonForbidden,
+					Message: "user \"\" cannot add/remove the label cluster.open-cluster-management.io/clusterset:clusterset1 to/from ManagedCluster",
+				},
+			},
+			allowUpdateClusterLabels: map[string]bool{
+				"cluster.open-cluster-management.io/clusterset:clusterset1": false,
+				"cluster.open-cluster-management.io/clusterset:clusterset2": false,
+			},
+		},
+		{
+			name: "validate updating clusterset label with partial label permission",
+			request: &admissionv1beta1.AdmissionRequest{
+				Resource:  managedclustersSchema,
+				Operation: admissionv1beta1.Update,
+				OldObject: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset2",
+					},
+				),
+			},
+			expectedResponse: &admissionv1beta1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: metav1.StatusFailure, Code: http.StatusForbidden, Reason: metav1.StatusReasonForbidden,
+					Message: "user \"\" cannot add/remove the label cluster.open-cluster-management.io/clusterset:clusterset2 to/from ManagedCluster",
+				},
+			},
+			allowUpdateClusterLabels: map[string]bool{
+				"cluster.open-cluster-management.io/clusterset:clusterset1": true,
+				"cluster.open-cluster-management.io/clusterset:clusterset2": false},
+		},
+		{
+			name: "validate resetting clusterset label with label permission",
+			request: &admissionv1beta1.AdmissionRequest{
+				Resource:  managedclustersSchema,
+				Operation: admissionv1beta1.Update,
+				OldObject: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{},
+				),
+			},
+			expectedResponse: &admissionv1beta1.AdmissionResponse{
+				Allowed: true,
+			},
+			allowUpdateClusterLabels: map[string]bool{
+				"cluster.open-cluster-management.io/clusterset:clusterset1": true,
+			},
+		},
+		{
+			name: "validate setting clusterset label",
+			request: &admissionv1beta1.AdmissionRequest{
+				Resource:  managedclustersSchema,
+				Operation: admissionv1beta1.Create,
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+			},
+			expectedResponse: &admissionv1beta1.AdmissionResponse{
+				Allowed: true,
+			},
+			allowJoinClusterSets: map[string]bool{
 				"clusterset1": true,
 			},
 		},
@@ -171,16 +316,20 @@ func TestManagedClusterValidate(t *testing.T) {
 			request: &admissionv1beta1.AdmissionRequest{
 				Resource:  managedclustersSchema,
 				Operation: admissionv1beta1.Create,
-				Object:    newManagedClusterObjWithClientSet("clusterset1"),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
 			},
 			expectedResponse: &admissionv1beta1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
 					Status: metav1.StatusFailure, Code: http.StatusForbidden, Reason: metav1.StatusReasonForbidden,
-					Message: "user \"\" cannot add/remove a ManagedCluster to/from ManagedClusterSet \"clusterset1\"",
+					Message: "user \"\" cannot add/remove the label cluster.open-cluster-management.io/clusterset:clusterset1 to/from ManagedCluster",
 				},
 			},
-			allowUpdateClusterSets: map[string]bool{
+			allowJoinClusterSets: map[string]bool{
 				"clusterset1": false,
 			},
 		},
@@ -189,13 +338,21 @@ func TestManagedClusterValidate(t *testing.T) {
 			request: &admissionv1beta1.AdmissionRequest{
 				Resource:  managedclustersSchema,
 				Operation: admissionv1beta1.Update,
-				OldObject: newManagedClusterObjWithClientSet("clusterset1"),
-				Object:    newManagedClusterObjWithClientSet("clusterset2"),
+				OldObject: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset2",
+					},
+				),
 			},
 			expectedResponse: &admissionv1beta1.AdmissionResponse{
 				Allowed: true,
 			},
-			allowUpdateClusterSets: map[string]bool{
+			allowJoinClusterSets: map[string]bool{
 				"clusterset1": true,
 				"clusterset2": true,
 			},
@@ -205,14 +362,22 @@ func TestManagedClusterValidate(t *testing.T) {
 			request: &admissionv1beta1.AdmissionRequest{
 				Resource:  managedclustersSchema,
 				Operation: admissionv1beta1.Update,
-				OldObject: newManagedClusterObjWithClientSet("clusterset1"),
-				Object:    newManagedClusterObjWithClientSet("clusterset2"),
+				OldObject: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset2",
+					},
+				),
 			},
 			expectedResponse: &admissionv1beta1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
 					Status: metav1.StatusFailure, Code: http.StatusForbidden, Reason: metav1.StatusReasonForbidden,
-					Message: "user \"\" cannot add/remove a ManagedCluster to/from ManagedClusterSet \"clusterset1\"",
+					Message: "user \"\" cannot add/remove the label cluster.open-cluster-management.io/clusterset:clusterset1 to/from ManagedCluster",
 				},
 			},
 		},
@@ -221,17 +386,25 @@ func TestManagedClusterValidate(t *testing.T) {
 			request: &admissionv1beta1.AdmissionRequest{
 				Resource:  managedclustersSchema,
 				Operation: admissionv1beta1.Update,
-				OldObject: newManagedClusterObjWithClientSet("clusterset1"),
-				Object:    newManagedClusterObjWithClientSet("clusterset2"),
+				OldObject: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset2",
+					},
+				),
 			},
 			expectedResponse: &admissionv1beta1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
 					Status: metav1.StatusFailure, Code: http.StatusForbidden, Reason: metav1.StatusReasonForbidden,
-					Message: "user \"\" cannot add/remove a ManagedCluster to/from ManagedClusterSet \"clusterset2\"",
+					Message: "user \"\" cannot add/remove the label cluster.open-cluster-management.io/clusterset:clusterset2 to/from ManagedCluster",
 				},
 			},
-			allowUpdateClusterSets: map[string]bool{
+			allowJoinClusterSets: map[string]bool{
 				"clusterset1": true,
 			},
 		},
@@ -240,14 +413,69 @@ func TestManagedClusterValidate(t *testing.T) {
 			request: &admissionv1beta1.AdmissionRequest{
 				Resource:  managedclustersSchema,
 				Operation: admissionv1beta1.Update,
-				OldObject: newManagedClusterObjWithClientSet("clusterset1"),
-				Object:    newManagedClusterObjWithClientSet(""),
+				OldObject: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{},
+				),
 			},
 			expectedResponse: &admissionv1beta1.AdmissionResponse{
 				Allowed: true,
 			},
-			allowUpdateClusterSets: map[string]bool{
+			allowJoinClusterSets: map[string]bool{
 				"clusterset1": true,
+			},
+		},
+		{
+			name: "validate updating clusterset label with join and label permission",
+			request: &admissionv1beta1.AdmissionRequest{
+				Resource:  managedclustersSchema,
+				Operation: admissionv1beta1.Update,
+				OldObject: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset2",
+					},
+				),
+			},
+			expectedResponse: &admissionv1beta1.AdmissionResponse{
+				Allowed: true,
+			},
+			allowJoinClusterSets: map[string]bool{
+				"clusterset1": true,
+			},
+			allowUpdateClusterLabels: map[string]bool{
+				"cluster.open-cluster-management.io/clusterset:clusterset2": true,
+			},
+		},
+		{
+			name: "validate updating clusterset label with label * permission",
+			request: &admissionv1beta1.AdmissionRequest{
+				Resource:  managedclustersSchema,
+				Operation: admissionv1beta1.Update,
+				OldObject: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset1",
+					},
+				),
+				Object: newManagedClusterObjWithLabels(
+					map[string]string{
+						"cluster.open-cluster-management.io/clusterset": "clusterset2",
+					},
+				),
+			},
+			expectedResponse: &admissionv1beta1.AdmissionResponse{
+				Allowed: true,
+			},
+			allowUpdateClusterLabels: map[string]bool{
+				"cluster.open-cluster-management.io/clusterset:*": true,
 			},
 		},
 	}
@@ -262,11 +490,17 @@ func TestManagedClusterValidate(t *testing.T) {
 					allowed := false
 
 					sar := action.(clienttesting.CreateAction).GetObject().(*authorizationv1.SubjectAccessReview)
+
 					switch sar.Spec.ResourceAttributes.Resource {
 					case "managedclusters":
+						if sar.Spec.ResourceAttributes.Subresource == "label" {
+							allowed = c.allowUpdateClusterLabels[sar.Spec.ResourceAttributes.Name]
+							break
+						}
 						allowed = c.allowUpdateAcceptField
 					case "managedclustersets":
-						allowed = c.allowUpdateClusterSets[sar.Spec.ResourceAttributes.Name]
+
+						allowed = c.allowJoinClusterSets[sar.Spec.ResourceAttributes.Name]
 					}
 
 					return true, &authorizationv1.SubjectAccessReview{
@@ -282,10 +516,79 @@ func TestManagedClusterValidate(t *testing.T) {
 			actualResponse := admissionHook.Validate(c.request)
 
 			if !reflect.DeepEqual(actualResponse, c.expectedResponse) {
-				t.Errorf("expected %#v but got: %#v", c.expectedResponse.Result, actualResponse.Result)
+				t.Errorf("Case: %#v, expected %#v but got: %#v", c.name, c.expectedResponse.Result, actualResponse.Result)
 			}
 		})
 	}
+}
+
+func TestGetDiffLabels(t *testing.T) {
+	cases := []struct {
+		caseName            string
+		oldLabels           map[string]string
+		newLabels           map[string]string
+		expecteDeleteLabels map[string]string
+		expecteAddLabels    map[string]string
+	}{
+		{
+			caseName: "add a label",
+			newLabels: map[string]string{
+				"add": "v",
+			},
+			expecteAddLabels: map[string]string{
+				"add": "v",
+			},
+		},
+		{
+			caseName: "delete a label",
+			oldLabels: map[string]string{
+				"add": "v",
+			},
+			expecteDeleteLabels: map[string]string{
+				"add": "v",
+			},
+		},
+		{
+			caseName: "add and delete a label(existing)",
+			oldLabels: map[string]string{
+				"old": "v",
+			},
+			newLabels: map[string]string{
+				"add": "v",
+			},
+			expecteDeleteLabels: map[string]string{
+				"old": "v",
+			},
+			expecteAddLabels: map[string]string{
+				"add": "v",
+			},
+		},
+		{
+			caseName: "update a label with same key",
+			oldLabels: map[string]string{
+				"update": "v1",
+			},
+			newLabels: map[string]string{
+				"update": "v2",
+			},
+			expecteDeleteLabels: map[string]string{
+				"update": "v1",
+			},
+			expecteAddLabels: map[string]string{
+				"update": "v2",
+			},
+		},
+	}
+	for _, c := range cases {
+		deletelabels, addLabels := getDiffLabels(c.oldLabels, c.newLabels)
+		if !reflect.DeepEqual(deletelabels, c.expecteDeleteLabels) {
+			t.Errorf("Failed to get diff labels, expectDeletedLabels:%v, got: %v", c.expecteDeleteLabels, deletelabels)
+		}
+		if !reflect.DeepEqual(addLabels, c.expecteAddLabels) {
+			t.Errorf("Failed to get diff labels, expecteAddLabels:%v, got: %v", c.expecteAddLabels, addLabels)
+		}
+	}
+
 }
 
 func newManagedClusterObj() runtime.RawExtension {
@@ -314,21 +617,11 @@ func newManagedClusterObjWithClientConfigs(clientConfig clusterv1.ClientConfig) 
 	}
 }
 
-func newManagedClusterObjWithClientSet(clusterSetName string) runtime.RawExtension {
+func newManagedClusterObjWithLabels(labels map[string]string) runtime.RawExtension {
 	managedCluster := testinghelpers.NewManagedCluster()
-	managedCluster.Labels = map[string]string{
-		clusterSetLabel: clusterSetName,
-	}
+	managedCluster.Labels = labels
 	clusterObj, _ := json.Marshal(managedCluster)
 	return runtime.RawExtension{
 		Raw: clusterObj,
-	}
-}
-
-func newManagedClusterSet(name string) *clusterv1beta1.ManagedClusterSet {
-	return &clusterv1beta1.ManagedClusterSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
 	}
 }
