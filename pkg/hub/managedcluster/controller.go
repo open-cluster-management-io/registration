@@ -98,8 +98,13 @@ func (c *managedClusterController) sync(ctx context.Context, syncCtx factory.Syn
 		}
 	}
 
-	// Spoke cluster is deleting, we remove its related resources
+	// Spoke cluster is deleting, we remove its related resources until there is only api-resource-cleanup finalizer
+	// or no finalizer.
 	if !managedCluster.DeletionTimestamp.IsZero() {
+		if len(managedCluster.Finalizers) > 1 {
+			return nil
+		}
+
 		if err := c.removeManagedClusterResources(ctx, managedClusterName); err != nil {
 			return err
 		}
