@@ -144,6 +144,8 @@ var _ = ginkgo.BeforeSuite(func(done ginkgo.Done) {
 	err = util.PrepareSpokeAgentNamespace(kubeClient, testNamespace)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
+	features.DefaultHubMutableFeatureGate.Set("V1beta1CSRAPICompatibility=true")
+
 	// start hub controller
 	go func() {
 		err := hub.RunControllerManager(context.Background(), &controllercmd.ControllerContext{
