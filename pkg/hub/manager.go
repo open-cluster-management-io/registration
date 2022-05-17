@@ -24,8 +24,10 @@ import (
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"github.com/openshift/library-go/pkg/controller/factory"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
 )
 
@@ -62,6 +64,11 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 		return err
 	}
 
+	metaClient, err := metadata.NewForConfig(kubeConfig)
+	if err != nil {
+		return err
+	}
+
 	clusterInformers := clusterv1informers.NewSharedInformerFactory(clusterClient, 10*time.Minute)
 	workInformers := workv1informers.NewSharedInformerFactory(workClient, 10*time.Minute)
 	kubeInfomers := kubeinformers.NewSharedInformerFactory(kubeClient, 10*time.Minute)
@@ -71,6 +78,15 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 		kubeClient,
 		clusterClient,
 		clusterInformers.Cluster().V1().ManagedClusters(),
+		controllerContext.EventRecorder,
+	)
+
+	managedClusterDeletionController := managedcluster.NewManagedClusterDeletionController(
+		kubeClient,
+		metaClient,
+		clusterClient,
+		clusterInformers.Cluster().V1().ManagedClusters(),
+		[]schema.GroupVersionResource{},
 		controllerContext.EventRecorder,
 	)
 
@@ -154,6 +170,7 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 	go addOnInformers.Start(ctx.Done())
 
 	go managedClusterController.Run(ctx, 1)
+	go managedClusterDeletionController.Run(ctx, 1)
 	go taintController.Run(ctx, 1)
 	go csrController.Run(ctx, 1)
 	go leaseController.Run(ctx, 1)

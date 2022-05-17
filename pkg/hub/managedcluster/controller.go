@@ -3,7 +3,6 @@ package managedcluster
 import (
 	"context"
 	"embed"
-	"encoding/json"
 	"fmt"
 
 	clientset "open-cluster-management.io/api/client/cluster/clientset/versioned"
@@ -21,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
@@ -92,25 +90,15 @@ func (c *managedClusterController) sync(ctx context.Context, syncCtx factory.Syn
 				break
 			}
 		}
+		// Do nothing is there is no finalizer
 		if !hasFinalizer {
-			finalizerBytes, err := json.Marshal(append(managedCluster.Finalizers, managedClusterFinalizer))
-			if err != nil {
-				return err
-			}
-			patch := fmt.Sprintf("{\"metadata\": {\"finalizers\": %s}}", string(finalizerBytes))
-
-			_, err = c.clusterClient.ClusterV1().ManagedClusters().Patch(
-				ctx, managedCluster.Name, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
-			return err
+			return nil
 		}
 	}
 
-	// Spoke cluster is deleting, we remove its related resources
+	// Do nothing if spoke cluster is deleting
 	if !managedCluster.DeletionTimestamp.IsZero() {
-		if err := c.removeManagedClusterResources(ctx, managedClusterName); err != nil {
-			return err
-		}
-		return c.removeManagedClusterFinalizer(ctx, managedCluster)
+		return nil
 	}
 
 	if !managedCluster.Spec.HubAcceptsClient {
@@ -122,7 +110,7 @@ func (c *managedClusterController) sync(ctx context.Context, syncCtx factory.Syn
 		// Hub cluster-admin denies the current spoke cluster, we remove its related resources and update its condition.
 		c.eventRecorder.Eventf("ManagedClusterDenied", "managed cluster %s is denied by hub cluster admin", managedClusterName)
 
-		if err := c.removeManagedClusterResources(ctx, managedClusterName); err != nil {
+		if err := removeManagedClusterResources(ctx, c.kubeClient, c.eventRecorder, managedClusterName); err != nil {
 			return err
 		}
 
@@ -140,9 +128,9 @@ func (c *managedClusterController) sync(ctx context.Context, syncCtx factory.Syn
 		return err
 	}
 
-	// TODO: we will add the managedcluster-namespace.yaml back to staticFiles
-	// in next release, currently, we need keep the namespace after the managed
-	// cluster is deleted.
+	// namespace needs to specially treated when deletion.
+	// namespace should not be deleted when hubAcceptClient=false
+	// namespace should not be delete when there is a certain label on it
 	applyFiles := []string{"manifests/managedcluster-namespace.yaml"}
 	applyFiles = append(applyFiles, staticFiles...)
 
@@ -194,36 +182,12 @@ func (c *managedClusterController) sync(ctx context.Context, syncCtx factory.Syn
 	return operatorhelpers.NewMultiLineAggregate(errs)
 }
 
-func (c *managedClusterController) removeManagedClusterResources(ctx context.Context, managedClusterName string) error {
+func removeManagedClusterResources(ctx context.Context, kubeClient kubernetes.Interface, eventRecorder events.Recorder, managedClusterName string) error {
 	errs := []error{}
 	// Clean up managed cluster manifests
 	assetFn := helpers.ManagedClusterAssetFn(manifestFiles, managedClusterName)
-	if err := helpers.CleanUpManagedClusterManifests(ctx, c.kubeClient, c.eventRecorder, assetFn, staticFiles...); err != nil {
+	if err := helpers.CleanUpManagedClusterManifests(ctx, kubeClient, eventRecorder, assetFn, staticFiles...); err != nil {
 		errs = append(errs, err)
 	}
 	return operatorhelpers.NewMultiLineAggregate(errs)
-}
-
-func (c *managedClusterController) removeManagedClusterFinalizer(ctx context.Context, managedCluster *v1.ManagedCluster) error {
-	copiedFinalizers := []string{}
-	for i := range managedCluster.Finalizers {
-		if managedCluster.Finalizers[i] == managedClusterFinalizer {
-			continue
-		}
-		copiedFinalizers = append(copiedFinalizers, managedCluster.Finalizers[i])
-	}
-
-	if len(managedCluster.Finalizers) != len(copiedFinalizers) {
-		finalizerBytes, err := json.Marshal(copiedFinalizers)
-		if err != nil {
-			return err
-		}
-		patch := fmt.Sprintf("{\"metadata\": {\"finalizers\": %s}}", string(finalizerBytes))
-
-		_, err = c.clusterClient.ClusterV1().ManagedClusters().Patch(
-			ctx, managedCluster.Name, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
-		return err
-	}
-
-	return nil
 }

@@ -3,8 +3,6 @@ kind: RoleBinding
 metadata:
   name: open-cluster-management:managedcluster:{{ .ManagedClusterName }}:work
   namespace: "{{ .ManagedClusterName }}"
-  finalizers:
-  - cluster.open-cluster-management.io/manifest-work-cleanup
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
