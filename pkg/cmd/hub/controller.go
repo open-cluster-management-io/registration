@@ -11,14 +11,17 @@ import (
 )
 
 func NewController() *cobra.Command {
+	options := hub.NewOption()
+
 	cmd := controllercmd.
-		NewControllerCommandConfig("registration-controller", version.Get(), hub.RunControllerManager).
+		NewControllerCommandConfig("registration-controller", version.Get(), options.RunControllerManager).
 		NewCommand()
 	cmd.Use = "controller"
 	cmd.Short = "Start the Cluster Registration Controller"
 
 	flags := cmd.Flags()
 	features.DefaultHubMutableFeatureGate.AddFlag(flags)
+	options.AddFlags(flags)
 
 	return cmd
 }

@@ -157,7 +157,8 @@ var _ = ginkgo.BeforeSuite(func(done ginkgo.Done) {
 
 	// start hub controller
 	go func() {
-		err := hub.RunControllerManager(ctx, &controllercmd.ControllerContext{
+		options := hub.NewOption()
+		err := options.RunControllerManager(ctx, &controllercmd.ControllerContext{
 			KubeConfig:    cfg,
 			EventRecorder: util.NewIntegrationTestEventRecorder("hub"),
 		})

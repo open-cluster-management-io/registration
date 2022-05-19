@@ -26,6 +26,7 @@ import (
 	listerv1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1"
 	v1 "open-cluster-management.io/api/cluster/v1"
 	workapiv1 "open-cluster-management.io/api/work/v1"
+	"open-cluster-management.io/registration/pkg/features"
 	"open-cluster-management.io/registration/pkg/helpers"
 )
 
@@ -174,6 +175,10 @@ type totalRemainingResource struct {
 }
 
 func (c *managedClusterDeletionController) cleanup(ctx context.Context, managedClusterName string) (totalRemainingResource, error) {
+	if !features.DefaultHubMutableFeatureGate.Enabled(features.ClusterLifeCycle) {
+		return totalRemainingResource{numRemainingResource: 0}, removeManagedClusterResources(ctx, c.kubeClient, c.eventRecorder, managedClusterName)
+	}
+
 	// monitor predefined resource at first, do not delete anything until all resource defined here has been cleaned by other controller.
 	for _, gvr := range c.preDeleteMonitorResources {
 		remaining, err := c.monitorGVR(ctx, managedClusterName, gvr, metav1.ListOptions{})
@@ -182,25 +187,27 @@ func (c *managedClusterDeletionController) cleanup(ctx context.Context, managedC
 		}
 	}
 
-	// delete all managedcluster addons.
+	// delete all managedcluster addons. This also remove all manifestworks relating to addons. Other works
+	// wiill not be removed until all addons are removed.
 	remainingAddon, err := c.cleanupGVR(ctx, managedClusterName, addonv1alpha1.GroupVersion.WithResource("managedclusteraddons"), metav1.ListOptions{})
 	if err != nil || remainingAddon.numRemainingResource > 0 {
 		return remainingAddon, err
 	}
 
-	// delete all manifestworks
+	// delete manifestworks without DeletionByOtherLabelKey labels
 	remainingWorks, err := c.cleanupGVR(ctx, managedClusterName, workapiv1.GroupVersion.WithResource("manifestworks"), metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("!%s", DeletionByOtherLabelKey),
 	})
 
 	if err != nil || remainingWorks.numRemainingResource > 0 {
-		return remainingAddon, err
+		return remainingWorks, err
 	}
 
-	// monitor all manifestworks again, this is to ensure all works have been deleted.
+	// monitor all manifestworks again, this is to ensure all works have been deleted. works with DeletionByOtherLabelKey should be
+	// deleted by other controller.
 	remainingWorks, err = c.monitorGVR(ctx, managedClusterName, workapiv1.GroupVersion.WithResource("manifestworks"), metav1.ListOptions{})
 	if err != nil || remainingWorks.numRemainingResource > 0 {
-		return remainingAddon, err
+		return remainingWorks, err
 	}
 
 	// for namespace deletion, we only delete ns with certain name and no deleteByOther label.
