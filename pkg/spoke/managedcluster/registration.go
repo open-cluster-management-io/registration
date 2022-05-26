@@ -93,7 +93,7 @@ func NewClientCertForHubController(
 	)
 }
 
-func GenerateBootStrapStatusUpdater() clientcert.StatusUpdateFunc {
+func GenerateBootstrapStatusUpdater() clientcert.StatusUpdateFunc {
 	return func(ctx context.Context, cond metav1.Condition) error {
 		return nil
 	}

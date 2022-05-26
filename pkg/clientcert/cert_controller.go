@@ -296,13 +296,13 @@ func (c *clientCertificateController) sync(ctx context.Context, syncCtx factory.
 			return err
 		}
 
-		timeBefore, timeAfter, err := getCertValidityPeriod(secret)
+		notBefore, notAfter, err := getCertValidityPeriod(secret)
 
 		cond := metav1.Condition{
 			Type:    "ClusterCertificateRotated",
 			Status:  metav1.ConditionTrue,
 			Reason:  "ClientCertificateUpdated",
-			Message: fmt.Sprintf("client certificate rotated starting from %v to %v", *timeAfter, *timeBefore),
+			Message: fmt.Sprintf("client certificate rotated starting from %v to %v", *notBefore, *notAfter),
 		}
 
 		if err != nil {

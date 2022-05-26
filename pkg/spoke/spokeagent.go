@@ -207,7 +207,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 			bootstrapInformerFactory.Certificates(),
 			managementKubeClient,
 			bootstrapKubeClient,
-			managedcluster.GenerateBootStrapStatusUpdater(),
+			managedcluster.GenerateBootstrapStatusUpdater(),
 			controllerContext.EventRecorder,
 			controllerName,
 		)
