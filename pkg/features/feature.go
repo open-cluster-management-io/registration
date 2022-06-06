@@ -41,6 +41,10 @@ const (
 	// means that all the approved CSR objects will be signed by the built-in CSR controller in
 	// kube-controller-manager.
 	V1beta1CSRAPICompatibility featuregate.Feature = "V1beta1CSRAPICompatibility"
+
+	// ClusterLifeCycle ensure all addons/manifestworks are cleaned in the cluster ns when the
+	// ManagedCluster is deleting.
+	ClusterLifeCycle featuregate.Feature = "ClusterLifeCycle"
 )
 
 var (
@@ -71,4 +75,5 @@ var defaultSpokeRegistrationFeatureGates = map[featuregate.Feature]featuregate.F
 // add it here.
 var defaultHubRegistrationFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	DefaultClusterSet: {Default: false, PreRelease: featuregate.Alpha},
+	ClusterLifeCycle:  {Default: false, PreRelease: featuregate.Alpha},
 }

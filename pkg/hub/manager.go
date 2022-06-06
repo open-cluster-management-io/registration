@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"open-cluster-management.io/registration/pkg/features"
@@ -24,16 +25,36 @@ import (
 
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"github.com/openshift/library-go/pkg/controller/factory"
+	"github.com/spf13/pflag"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
 )
 
 var ResyncInterval = 5 * time.Minute
 
+type Option struct {
+	ResourcesToMonitor []string
+}
+
+func NewOption() *Option {
+	return &Option{
+		ResourcesToMonitor: []string{},
+	}
+}
+
+// AddFlags registers flags for Agent
+func (o *Option) AddFlags(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&o.ResourcesToMonitor, "resources-to-monitor-for-deletion", o.ResourcesToMonitor,
+		"A list of resources to monitor before the managed cluster is deleted. This flag should be set only"+
+			"when ClusterLifeCycle feature gates is enabled.")
+}
+
 // RunControllerManager starts the controllers on hub to manage spoke cluster registration.
-func RunControllerManager(ctx context.Context, controllerContext *controllercmd.ControllerContext) error {
+func (o *Option) RunControllerManager(ctx context.Context, controllerContext *controllercmd.ControllerContext) error {
 	// If qps in kubconfig is not set, increase the qps and burst to enhance the ability of kube client to handle
 	// requests in concurrent
 	// TODO: Use ClientConnectionOverrides flags to change qps/burst when library-go exposes them in the future
@@ -63,15 +84,39 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 		return err
 	}
 
+	metaClient, err := metadata.NewForConfig(kubeConfig)
+	if err != nil {
+		return err
+	}
+
 	clusterInformers := clusterv1informers.NewSharedInformerFactory(clusterClient, 10*time.Minute)
 	workInformers := workv1informers.NewSharedInformerFactory(workClient, 10*time.Minute)
 	kubeInfomers := kubeinformers.NewSharedInformerFactory(kubeClient, 10*time.Minute)
 	addOnInformers := addoninformers.NewSharedInformerFactory(addOnClient, 10*time.Minute)
 
+	resourcesToMonitor := []schema.GroupVersionResource{}
+	for _, r := range o.ResourcesToMonitor {
+		gvr, _ := schema.ParseResourceArg(r)
+		if gvr == nil {
+			return fmt.Errorf("failed to parse resource group for %s", r)
+		}
+
+		resourcesToMonitor = append(resourcesToMonitor, *gvr)
+	}
+
 	managedClusterController := managedcluster.NewManagedClusterController(
 		kubeClient,
 		clusterClient,
 		clusterInformers.Cluster().V1().ManagedClusters(),
+		controllerContext.EventRecorder,
+	)
+
+	managedClusterDeletionController := managedcluster.NewManagedClusterDeletionController(
+		kubeClient,
+		metaClient,
+		clusterClient,
+		clusterInformers.Cluster().V1().ManagedClusters(),
+		resourcesToMonitor,
 		controllerContext.EventRecorder,
 	)
 
@@ -156,6 +201,7 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 	go addOnInformers.Start(ctx.Done())
 
 	go managedClusterController.Run(ctx, 1)
+	go managedClusterDeletionController.Run(ctx, 1)
 	go taintController.Run(ctx, 1)
 	go csrController.Run(ctx, 1)
 	go leaseController.Run(ctx, 1)
