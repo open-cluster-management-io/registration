@@ -26,6 +26,8 @@ type registrationConfig struct {
 	secretName string
 	hash       string
 	stopFunc   context.CancelFunc
+
+	installMode string
 }
 
 func (c *registrationConfig) x509Subject(clusterName, agentName string) *pkix.Name {
@@ -60,13 +62,25 @@ func getAddOnInstallationNamespace(addOn *addonv1alpha1.ManagedClusterAddOn) str
 	return installationNamespace
 }
 
+// getAddonInstallMode returns addon installation mode, mode could be `Default` or `Hosted`
+func getAddonInstallMode(addOn *addonv1alpha1.ManagedClusterAddOn) string {
+	hostingCluster, ok := addOn.Annotations["addon.open-cluster-management.io/hosting-cluster-name"]
+	if ok && len(hostingCluster) != 0 {
+		return "Hosted"
+	}
+	return "Default"
+}
+
 // getRegistrationConfigs reads annotations of a addon and returns a map of registrationConfig whose
 // key is the hash of the registrationConfig
 func getRegistrationConfigs(addOn *addonv1alpha1.ManagedClusterAddOn) (map[string]registrationConfig, error) {
 	configs := map[string]registrationConfig{}
+
+	installMode := getAddonInstallMode(addOn)
 	for _, registration := range addOn.Status.Registrations {
 		config := registrationConfig{
 			addOnName:             addOn.Name,
+			installMode:           installMode,
 			installationNamespace: getAddOnInstallationNamespace(addOn),
 			registration:          registration,
 		}

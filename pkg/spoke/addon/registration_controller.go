@@ -30,15 +30,16 @@ import (
 // may have multiple registrationConfigs. A clientcert.NewClientCertificateController will be started
 // for each of them.
 type addOnRegistrationController struct {
-	clusterName     string
-	agentName       string
-	kubeconfigData  []byte
-	spokeKubeClient kubernetes.Interface
-	hubAddOnLister  addonlisterv1alpha1.ManagedClusterAddOnLister
-	hubCSRInformer  certificatesinformers.Interface
-	hubKubeClient   kubernetes.Interface
-	addOnClient     addonclient.Interface
-	recorder        events.Recorder
+	clusterName          string
+	agentName            string
+	kubeconfigData       []byte
+	managementKubeClient kubernetes.Interface // in-cluster local management kubeClient
+	spokeKubeClient      kubernetes.Interface
+	hubAddOnLister       addonlisterv1alpha1.ManagedClusterAddOnLister
+	hubCSRInformer       certificatesinformers.Interface
+	hubKubeClient        kubernetes.Interface
+	addOnClient          addonclient.Interface
+	recorder             events.Recorder
 
 	startRegistrationFunc func(ctx context.Context, config registrationConfig) context.CancelFunc
 
@@ -52,8 +53,9 @@ func NewAddOnRegistrationController(
 	clusterName string,
 	agentName string,
 	kubeconfigData []byte,
-	kubeClient kubernetes.Interface,
 	addOnClient addonclient.Interface,
+	managementKubeClient kubernetes.Interface,
+	managedKubeClient kubernetes.Interface,
 	hubCSRInformer certificatesinformers.Interface,
 	hubAddOnInformers addoninformerv1alpha1.ManagedClusterAddOnInformer,
 	hubCSRClient kubernetes.Interface,
@@ -63,7 +65,8 @@ func NewAddOnRegistrationController(
 		clusterName:              clusterName,
 		agentName:                agentName,
 		kubeconfigData:           kubeconfigData,
-		spokeKubeClient:          kubeClient,
+		managementKubeClient:     managementKubeClient,
+		spokeKubeClient:          managedKubeClient,
 		hubAddOnLister:           hubAddOnInformers.Lister(),
 		hubCSRInformer:           hubCSRInformer,
 		hubKubeClient:            hubCSRClient,
@@ -175,7 +178,15 @@ func (c *addOnRegistrationController) syncAddOn(ctx context.Context, syncCtx fac
 // startRegistration starts a client certificate controller with the given config
 func (c *addOnRegistrationController) startRegistration(ctx context.Context, config registrationConfig) context.CancelFunc {
 	ctx, stopFunc := context.WithCancel(ctx)
-	kubeInformerFactory := informers.NewSharedInformerFactoryWithOptions(c.spokeKubeClient, 10*time.Minute, informers.WithNamespace(config.installationNamespace))
+
+	var kubeClient kubernetes.Interface = c.spokeKubeClient
+	if config.installMode == "Hosted" {
+		// generate the secret generated on the management cluster
+		kubeClient = c.managementKubeClient
+	}
+
+	kubeInformerFactory := informers.NewSharedInformerFactoryWithOptions(
+		kubeClient, 10*time.Minute, informers.WithNamespace(config.installationNamespace))
 
 	additonalSecretData := map[string][]byte{}
 	if config.registration.SignerName == certificatesv1.KubeAPIServerClientSignerName {
@@ -213,9 +224,9 @@ func (c *addOnRegistrationController) startRegistration(ctx context.Context, con
 		clientCertOption,
 		csrOption,
 		c.hubCSRInformer,
-		kubeInformerFactory.Core().V1().Secrets(),
-		c.spokeKubeClient,
 		c.hubKubeClient,
+		kubeInformerFactory.Core().V1().Secrets(),
+		kubeClient,
 		statusUpdater,
 		c.recorder,
 		controllerName,
@@ -246,8 +257,14 @@ func (c *addOnRegistrationController) stopRegistration(ctx context.Context, conf
 		config.stopFunc()
 	}
 
-	// delete the secret generated
-	err := c.spokeKubeClient.CoreV1().Secrets(config.installationNamespace).Delete(ctx, config.secretName, metav1.DeleteOptions{})
+	var kubeClient kubernetes.Interface = c.spokeKubeClient
+	if config.installMode == "Hosted" {
+		// delete the secret generated on the management cluster
+		kubeClient = c.managementKubeClient
+	}
+
+	err := kubeClient.CoreV1().Secrets(config.installationNamespace).
+		Delete(ctx, config.secretName, metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
