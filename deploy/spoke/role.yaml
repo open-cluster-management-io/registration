@@ -5,7 +5,7 @@ metadata:
   namespace: open-cluster-management-agent
 rules:
 - apiGroups: [""]
-  resources: ["configmaps", "secrets"]
+  resources: ["secrets"]
   verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
 - apiGroups: ["", "events.k8s.io"]
   resources: ["events"]
