@@ -374,6 +374,14 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		)
 	}
 
+	addonNamespaceController := addon.NewAddonNamespaceController(
+		o.ClusterName,
+		spokeKubeClient,
+		addOnInformerFactory.Addon().V1alpha1().ManagedClusterAddOns(),
+		controllerContext.EventRecorder,
+	)
+
+
 	go hubKubeInformerFactory.Start(ctx.Done())
 	go hubClusterInformerFactory.Start(ctx.Done())
 	go spokeKubeInformerFactory.Start(ctx.Done())
@@ -391,6 +399,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	if features.DefaultSpokeMutableFeatureGate.Enabled(ocmfeature.AddonManagement) {
 		go addOnLeaseController.Run(ctx, 1)
 		go addOnRegistrationController.Run(ctx, 1)
+		go addonNamespaceController.Run(ctx, 1)
 	}
 
 	<-ctx.Done()
