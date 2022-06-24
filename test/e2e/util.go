@@ -94,12 +94,12 @@ func (u *utilClients) createManagedCluster(clusterName, suffix string) (*cluster
 		return nil, err
 	}
 
-	err = u.createSpokeCR("spoke/clusterrole_addition.yaml", suffix)
+	err = u.createSpokeCR("spoke/clusterrole_addon-management.yaml", suffix)
 	if err != nil {
 		return nil, err
 	}
 
-	err = u.createSpokeCRB("spoke/clusterrole_binding_addition.yaml", nsName, suffix)
+	err = u.createSpokeCRB("spoke/clusterrole_binding_addon-management.yaml", nsName, suffix)
 	if err != nil {
 		return nil, err
 	}
@@ -327,12 +327,12 @@ func (u *utilClients) cleanupManagedCluster(clusterName, suffix string) error {
 		return err
 	}
 
-	err = u.deleteSpokeCR("spoke/clusterrole_addition.yaml", suffix)
+	err = u.deleteSpokeCR("spoke/clusterrole_addon-management.yaml", suffix)
 	if err != nil {
 		return err
 	}
 
-	err = u.deleteSpokeCRB("spoke/clusterrole_binding_addition.yaml", nsName, suffix)
+	err = u.deleteSpokeCRB("spoke/clusterrole_binding_addon-management.yaml", nsName, suffix)
 	if err != nil {
 		return err
 	}

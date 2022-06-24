@@ -141,10 +141,10 @@ var _ = ginkgo.Describe("Loopback registration [development]", func() {
 		err = u.createSpokeCRB("spoke/clusterrole_binding.yaml", nsName, suffix)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		err = u.createSpokeCR("spoke/clusterrole_addition.yaml", suffix)
+		err = u.createSpokeCR("spoke/clusterrole_addon-management.yaml", suffix)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		err = u.createSpokeCRB("spoke/clusterrole_binding_addition.yaml", nsName, suffix)
+		err = u.createSpokeCRB("spoke/clusterrole_binding_addon-management.yaml", nsName, suffix)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		err = u.createSpokeRole("spoke/role.yaml", nsName, suffix)
