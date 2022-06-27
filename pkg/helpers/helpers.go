@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/url"
 
-	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	addonv1alpha1client "open-cluster-management.io/api/client/addon/clientset/versioned"
 	clusterclientset "open-cluster-management.io/api/client/cluster/clientset/versioned"
