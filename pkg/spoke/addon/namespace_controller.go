@@ -14,7 +14,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	addoninformerv1alpha1 "open-cluster-management.io/api/client/addon/informers/externalversions/addon/v1alpha1"
 	addonlisterv1alpha1 "open-cluster-management.io/api/client/addon/listers/addon/v1alpha1"
-	"open-cluster-management.io/registration/pkg/helpers"
 )
 
 type addonNamespaceController struct {
@@ -64,7 +63,7 @@ func (c *addonNamespaceController) sync(ctx context.Context, syncCtx factory.Syn
 			ObjectMeta: metav1.ObjectMeta{
 				Name: installNamespace,
 				Annotations: map[string]string{
-					"open-cluster-management.io/addon-namespace": "true",
+					"addon.open-cluster-management.io/namespace": "true",
 				},
 			},
 		}, metav1.CreateOptions{})
@@ -78,14 +77,14 @@ func (c *addonNamespaceController) sync(ctx context.Context, syncCtx factory.Syn
 		// Update ns if annotation not set
 		if ns.Annotations == nil {
 			ns.Annotations = make(map[string]string)
-			ns.Annotations["open-cluster-management.io/addon-namespace"] = "true"
+			ns.Annotations["addon.open-cluster-management.io/namespace"] = "true"
 			_, err = c.kubeClient.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
 			if err != nil {
 				return err
 			}
 		} else {
-			if ns.Annotations["open-cluster-management.io/addon-namespace"] != "true" {
-				ns.Annotations["open-cluster-management.io/addon-namespace"] = "true"
+			if ns.Annotations["addon.open-cluster-management.io/namespace"] != "true" {
+				ns.Annotations["addon.open-cluster-management.io/namespace"] = "true"
 				_, err = c.kubeClient.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
 				if err != nil {
 					return err
@@ -94,13 +93,21 @@ func (c *addonNamespaceController) sync(ctx context.Context, syncCtx factory.Syn
 		}
 	}
 
-	// Ensure PullSecret in installNamespace
-	_, _, err = helpers.SyncSecret(ctx, c.kubeClient.CoreV1(), c.kubeClient.CoreV1(), c.recorder,
-		"open-cluster-management", "open-cluster-management-image-pull-credentials", // source secret
-		installNamespace, "open-cluster-management-image-pull-credentials", // target secret
-		[]metav1.OwnerReference{})
-	if err != nil {
-		return err
+	// When addon is deleted, check if there is anyother addon is using the same installNamespace, if not, delete the namespace
+	if addOn.DeletionTimestamp.IsZero() {
+		addOnList, err := c.addOnLister.ManagedClusterAddOns(c.managedClusterName).List(nil)
+		if err != nil {
+			return err
+		}
+		for _, a := range addOnList {
+			if a.Spec.InstallNamespace == addOn.Spec.InstallNamespace && !a.DeletionTimestamp.IsZero() {
+				return nil
+			}
+		}
+		err = c.kubeClient.CoreV1().Namespaces().Delete(ctx, installNamespace, metav1.DeleteOptions{})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
