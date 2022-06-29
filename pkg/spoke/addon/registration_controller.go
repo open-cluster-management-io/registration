@@ -180,8 +180,11 @@ func (c *addOnRegistrationController) startRegistration(ctx context.Context, con
 	ctx, stopFunc := context.WithCancel(ctx)
 
 	var kubeClient kubernetes.Interface = c.spokeKubeClient
-	if config.installMode == "Hosted" {
-		// generate the secret generated on the management cluster
+	if config.addOnAgentRunningOutsideManagedCluster {
+		// will generate the secret on the managed cluster by default, but if the addon agent is not running on the
+		// managed cluster(in Hosted mode the agent runs outside the managed cluster, for more details see the hosted
+		// mode design docs for addon: https://github.com/open-cluster-management-io/enhancements/pull/65), generate it
+		// on the management cluster
 		kubeClient = c.managementKubeClient
 	}
 
@@ -258,7 +261,7 @@ func (c *addOnRegistrationController) stopRegistration(ctx context.Context, conf
 	}
 
 	var kubeClient kubernetes.Interface = c.spokeKubeClient
-	if config.installMode == "Hosted" {
+	if config.addOnAgentRunningOutsideManagedCluster {
 		// delete the secret generated on the management cluster
 		kubeClient = c.managementKubeClient
 	}
