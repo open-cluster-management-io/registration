@@ -179,12 +179,13 @@ func (c *addOnRegistrationController) syncAddOn(ctx context.Context, syncCtx fac
 func (c *addOnRegistrationController) startRegistration(ctx context.Context, config registrationConfig) context.CancelFunc {
 	ctx, stopFunc := context.WithCancel(ctx)
 
+	// the kubeClient here will be used to generate the hub kubeconfig secret for addon agents, it generates the secret
+	// on the managed cluster by default, but if the addon agent is not running on the managed cluster(in Hosted mode
+	// the addon agent runs outside the managed cluster, for more details see the hosted mode design docs for addon:
+	// https://github.com/open-cluster-management-io/enhancements/pull/65), it generate the secret on the
+	// management(hosting) cluster
 	var kubeClient kubernetes.Interface = c.spokeKubeClient
 	if config.addOnAgentRunningOutsideManagedCluster {
-		// will generate the secret on the managed cluster by default, but if the addon agent is not running on the
-		// managed cluster(in Hosted mode the agent runs outside the managed cluster, for more details see the hosted
-		// mode design docs for addon: https://github.com/open-cluster-management-io/enhancements/pull/65), generate it
-		// on the management cluster
 		kubeClient = c.managementKubeClient
 	}
 
