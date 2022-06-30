@@ -2,8 +2,9 @@ package hub
 
 import (
 	"context"
-	ocmfeature "open-cluster-management.io/api/feature"
 	"time"
+
+	ocmfeature "open-cluster-management.io/api/feature"
 
 	"open-cluster-management.io/registration/pkg/features"
 	"open-cluster-management.io/registration/pkg/hub/managedclustersetbinding"
@@ -82,11 +83,20 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 		controllerContext.EventRecorder,
 	)
 
-	csrController := csr.NewCSRApprovingController(
-		kubeClient,
-		kubeInfomers.Certificates().V1().CertificateSigningRequests(),
-		controllerContext.EventRecorder,
-	)
+	var csrController factory.Controller
+	if features.DefaultHubMutableFeatureGate.Enabled(ocmfeature.V1beta1CSRAPICompatibility) {
+		csrController = csr.NewV1beta1CSRApprovingController(
+			kubeClient,
+			kubeInfomers.Certificates().V1beta1().CertificateSigningRequests(),
+			controllerContext.EventRecorder,
+		)
+	} else {
+		csrController = csr.NewCSRApprovingController(
+			kubeClient,
+			kubeInfomers.Certificates().V1().CertificateSigningRequests(),
+			controllerContext.EventRecorder,
+		)
+	}
 
 	leaseController := lease.NewClusterLeaseController(
 		kubeClient,
