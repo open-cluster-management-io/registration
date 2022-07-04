@@ -5,6 +5,7 @@ import (
 
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -61,41 +62,16 @@ func (c *addonNamespaceController) sync(ctx context.Context, syncCtx factory.Syn
 	installNamespace := addOn.Spec.InstallNamespace
 
 	// Check installNamespace exist or not
-	ns, err := c.kubeClient.CoreV1().Namespaces().Get(ctx, installNamespace, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		// Create installNamespace
-		_, err = c.kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: installNamespace,
-				Annotations: map[string]string{
-					addonInstallNamespaceAnnotationKey: "true",
-				},
+	_, _, err = resourceapply.ApplyNamespace(ctx, c.kubeClient.CoreV1(), c.recorder, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: installNamespace,
+			Annotations: map[string]string{
+				addonInstallNamespaceAnnotationKey: "true",
 			},
-		}, metav1.CreateOptions{})
-		if err != nil {
-			return err
-		}
-		return nil
-	} else if err != nil {
+		},
+	})
+	if err != nil {
 		return err
-	} else {
-		// Update ns if annotation not set
-		if ns.Annotations == nil {
-			ns.Annotations = make(map[string]string)
-			ns.Annotations[addonInstallNamespaceAnnotationKey] = "true"
-			_, err = c.kubeClient.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
-			if err != nil {
-				return err
-			}
-		} else {
-			if ns.Annotations[addonInstallNamespaceAnnotationKey] != "true" {
-				ns.Annotations[addonInstallNamespaceAnnotationKey] = "true"
-				_, err = c.kubeClient.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
-				if err != nil {
-					return err
-				}
-			}
-		}
 	}
 
 	// When addon is deleted, check if there is anyother addon is using the same installNamespace, if not, delete the namespace
