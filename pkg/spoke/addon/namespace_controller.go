@@ -9,11 +9,16 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	addoninformerv1alpha1 "open-cluster-management.io/api/client/addon/informers/externalversions/addon/v1alpha1"
 	addonlisterv1alpha1 "open-cluster-management.io/api/client/addon/listers/addon/v1alpha1"
+)
+
+const (
+	addonInstallNamespace = "addon.open-cluster-management.io/namespace"
 )
 
 type addonNamespaceController struct {
@@ -63,7 +68,7 @@ func (c *addonNamespaceController) sync(ctx context.Context, syncCtx factory.Syn
 			ObjectMeta: metav1.ObjectMeta{
 				Name: installNamespace,
 				Annotations: map[string]string{
-					"addon.open-cluster-management.io/namespace": "true",
+					addonInstallNamespace: "true",
 				},
 			},
 		}, metav1.CreateOptions{})
@@ -77,14 +82,14 @@ func (c *addonNamespaceController) sync(ctx context.Context, syncCtx factory.Syn
 		// Update ns if annotation not set
 		if ns.Annotations == nil {
 			ns.Annotations = make(map[string]string)
-			ns.Annotations["addon.open-cluster-management.io/namespace"] = "true"
+			ns.Annotations[addonInstallNamespace] = "true"
 			_, err = c.kubeClient.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
 			if err != nil {
 				return err
 			}
 		} else {
-			if ns.Annotations["addon.open-cluster-management.io/namespace"] != "true" {
-				ns.Annotations["addon.open-cluster-management.io/namespace"] = "true"
+			if ns.Annotations[addonInstallNamespace] != "true" {
+				ns.Annotations[addonInstallNamespace] = "true"
 				_, err = c.kubeClient.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
 				if err != nil {
 					return err
@@ -94,13 +99,13 @@ func (c *addonNamespaceController) sync(ctx context.Context, syncCtx factory.Syn
 	}
 
 	// When addon is deleted, check if there is anyother addon is using the same installNamespace, if not, delete the namespace
-	if addOn.DeletionTimestamp.IsZero() {
-		addOnList, err := c.addOnLister.ManagedClusterAddOns(c.managedClusterName).List(nil)
+	if !addOn.DeletionTimestamp.IsZero() {
+		addOnList, err := c.addOnLister.ManagedClusterAddOns(c.managedClusterName).List(labels.Everything())
 		if err != nil {
 			return err
 		}
 		for _, a := range addOnList {
-			if a.Spec.InstallNamespace == addOn.Spec.InstallNamespace && !a.DeletionTimestamp.IsZero() {
+			if a.Spec.InstallNamespace == addOn.Spec.InstallNamespace && a.DeletionTimestamp.IsZero() {
 				return nil
 			}
 		}
