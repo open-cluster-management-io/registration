@@ -265,7 +265,7 @@ func TestNamespaceController(t *testing.T) {
 		addonInformerFactory := addoninformers.NewSharedInformerFactory(addonClient, time.Minute*10)
 		addonStore := addonInformerFactory.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetStore()
 		for _, addon := range c.addons {
-			addonStore.Add(addon)
+			_ = addonStore.Add(addon)
 		}
 
 		controller := &addonNamespaceController{
