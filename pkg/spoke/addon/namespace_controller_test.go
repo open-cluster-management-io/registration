@@ -63,7 +63,7 @@ func TestNamespaceController(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
-				if ns.Annotations[addonInstallNamespace] != "true" {
+				if ns.Annotations[addonInstallNamespaceAnnotationKey] != "true" {
 					t.Errorf("expected namespace to be annotated with managed cluster name, got %v", ns.Annotations)
 				}
 			},
@@ -95,7 +95,7 @@ func TestNamespaceController(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
-				if ns.Annotations[addonInstallNamespace] != "true" {
+				if ns.Annotations[addonInstallNamespaceAnnotationKey] != "true" {
 					t.Errorf("expected namespace to be annotated with managed cluster name, got %v", ns.Annotations)
 				}
 			},
@@ -109,7 +109,7 @@ func TestNamespaceController(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "test",
 						Annotations: map[string]string{
-							addonInstallNamespace: "false",
+							addonInstallNamespaceAnnotationKey: "false",
 						},
 					},
 				},
@@ -130,7 +130,7 @@ func TestNamespaceController(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
-				if ns.Annotations[addonInstallNamespace] != "true" {
+				if ns.Annotations[addonInstallNamespaceAnnotationKey] != "true" {
 					t.Errorf("expected namespace to be annotated with managed cluster name, got %v", ns.Annotations)
 				}
 			},
@@ -144,7 +144,7 @@ func TestNamespaceController(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "test",
 						Annotations: map[string]string{
-							addonInstallNamespace: "true",
+							addonInstallNamespaceAnnotationKey: "true",
 						},
 					},
 				},
@@ -175,7 +175,7 @@ func TestNamespaceController(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "test",
 						Annotations: map[string]string{
-							addonInstallNamespace: "true",
+							addonInstallNamespaceAnnotationKey: "true",
 						},
 					},
 				},
@@ -220,7 +220,7 @@ func TestNamespaceController(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "test",
 						Annotations: map[string]string{
-							addonInstallNamespace: "true",
+							addonInstallNamespaceAnnotationKey: "true",
 						},
 					},
 				},

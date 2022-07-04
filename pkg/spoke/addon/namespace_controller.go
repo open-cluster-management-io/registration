@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	addonInstallNamespace = "addon.open-cluster-management.io/namespace"
+	addonInstallNamespaceAnnotationKey = "addon.open-cluster-management.io/namespace"
 )
 
 type addonNamespaceController struct {
@@ -68,7 +68,7 @@ func (c *addonNamespaceController) sync(ctx context.Context, syncCtx factory.Syn
 			ObjectMeta: metav1.ObjectMeta{
 				Name: installNamespace,
 				Annotations: map[string]string{
-					addonInstallNamespace: "true",
+					addonInstallNamespaceAnnotationKey: "true",
 				},
 			},
 		}, metav1.CreateOptions{})
@@ -82,14 +82,14 @@ func (c *addonNamespaceController) sync(ctx context.Context, syncCtx factory.Syn
 		// Update ns if annotation not set
 		if ns.Annotations == nil {
 			ns.Annotations = make(map[string]string)
-			ns.Annotations[addonInstallNamespace] = "true"
+			ns.Annotations[addonInstallNamespaceAnnotationKey] = "true"
 			_, err = c.kubeClient.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
 			if err != nil {
 				return err
 			}
 		} else {
-			if ns.Annotations[addonInstallNamespace] != "true" {
-				ns.Annotations[addonInstallNamespace] = "true"
+			if ns.Annotations[addonInstallNamespaceAnnotationKey] != "true" {
+				ns.Annotations[addonInstallNamespaceAnnotationKey] = "true"
 				_, err = c.kubeClient.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
 				if err != nil {
 					return err
