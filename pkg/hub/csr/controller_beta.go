@@ -2,24 +2,17 @@ package csr
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/pem"
-	"fmt"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	"open-cluster-management.io/registration/pkg/helpers"
-	"open-cluster-management.io/registration/pkg/hub/user"
 
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
-	authorizationv1 "k8s.io/api/authorization/v1"
 	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	certificatesv1beta1informers "k8s.io/client-go/informers/certificates/v1beta1"
@@ -49,7 +42,7 @@ func NewV1beta1CSRApprovingController(
 		return accessor.GetName()
 	}, v1beta1CSRInformer.Informer()).
 		WithSync(c.sync).
-		ToController("CSRApprovingController", recorder)
+		ToController("V1Beta1CSRApprovingController", recorder)
 }
 
 func (c *v1beta1CSRApprovingController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
@@ -69,14 +62,15 @@ func (c *v1beta1CSRApprovingController) sync(ctx context.Context, syncCtx factor
 		return nil
 	}
 
+	csrInfo := newCSRInfo(csr)
 	// Check whether current csr is a renewal spoke cluster csr.
-	isRenewal := isV1beta1SpokeClusterClientCertRenewal(csr)
+	isRenewal := isSpokeClusterClientCertRenewal(csrInfo)
 	if !isRenewal {
 		klog.V(4).Infof("CSR %q was not recognized", csr.Name)
 		return nil
 	}
 
-	allowed, err := c.authorize(ctx, csr)
+	allowed, err := c.authorize(ctx, csrInfo)
 	if err != nil {
 		return err
 	}
@@ -101,75 +95,12 @@ func (c *v1beta1CSRApprovingController) sync(ctx context.Context, syncCtx factor
 	return nil
 }
 
-// To check a renewal managed cluster csr, we check
-// 1. if the signer name in csr request is valid.
-// 2. if organization field and commonName field in csr request is valid.
-// 3. if user name in csr is the same as commonName field in csr request.
-func (c *v1beta1CSRApprovingController) authorize(ctx context.Context, csr *certificatesv1beta1.CertificateSigningRequest) (bool, error) {
-	extra := make(map[string]authorizationv1.ExtraValue)
-	for k, v := range csr.Spec.Extra {
-		extra[k] = authorizationv1.ExtraValue(v)
-	}
-
-	sar := &authorizationv1.SubjectAccessReview{
-		Spec: authorizationv1.SubjectAccessReviewSpec{
-			User:   csr.Spec.Username,
-			UID:    csr.Spec.UID,
-			Groups: csr.Spec.Groups,
-			Extra:  extra,
-			ResourceAttributes: &authorizationv1.ResourceAttributes{
-				Group:       "register.open-cluster-management.io",
-				Resource:    "managedclusters",
-				Verb:        "renew",
-				Subresource: "clientcertificates",
-			},
-		},
-	}
-	sar, err := c.kubeClient.AuthorizationV1().SubjectAccessReviews().Create(ctx, sar, metav1.CreateOptions{})
+// Using SubjectAccessReview API to check whether a spoke agent has been authorized to renew its csr,
+// a spoke agent is authorized after its spoke cluster is accepted by hub cluster admin.
+func (c *v1beta1CSRApprovingController) authorize(ctx context.Context, csr csrInfo) (bool, error) {
+	sar, err := c.kubeClient.AuthorizationV1().SubjectAccessReviews().Create(ctx, newSAR(csr), metav1.CreateOptions{})
 	if err != nil {
 		return false, err
 	}
 	return sar.Status.Allowed, nil
-}
-
-func isV1beta1SpokeClusterClientCertRenewal(csr *certificatesv1beta1.CertificateSigningRequest) bool {
-	spokeClusterName, existed := csr.Labels[spokeClusterNameLabel]
-	if !existed {
-		return false
-	}
-
-	if *csr.Spec.SignerName != certificatesv1beta1.KubeAPIServerClientSignerName {
-		return false
-	}
-
-	block, _ := pem.Decode(csr.Spec.Request)
-	if block == nil || block.Type != "CERTIFICATE REQUEST" {
-		klog.V(4).Infof("csr %q was not recognized: PEM block type is not CERTIFICATE REQUEST", csr.Name)
-		return false
-	}
-
-	x509cr, err := x509.ParseCertificateRequest(block.Bytes)
-	if err != nil {
-		klog.V(4).Infof("csr %q was not recognized: %v", csr.Name, err)
-		return false
-	}
-
-	requestingOrgs := sets.NewString(x509cr.Subject.Organization...)
-	if requestingOrgs.Has(user.ManagedClustersGroup) { // optional common group for backward-compatibility
-		requestingOrgs.Delete(user.ManagedClustersGroup)
-	}
-	if requestingOrgs.Len() != 1 {
-		return false
-	}
-
-	expectedPerClusterOrg := fmt.Sprintf("%s%s", user.SubjectPrefix, spokeClusterName)
-	if !requestingOrgs.Has(expectedPerClusterOrg) {
-		return false
-	}
-
-	if !strings.HasPrefix(x509cr.Subject.CommonName, expectedPerClusterOrg) {
-		return false
-	}
-
-	return csr.Spec.Username == x509cr.Subject.CommonName
 }
