@@ -55,5 +55,4 @@ var DefaultSpokeRegistrationFeatureGates = map[featuregate.Feature]featuregate.F
 // add it here.
 var DefaultHubRegistrationFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	DefaultClusterSet: {Default: false, PreRelease: featuregate.Alpha},
-	
 }
