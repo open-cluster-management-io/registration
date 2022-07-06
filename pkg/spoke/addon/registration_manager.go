@@ -12,24 +12,29 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	certificatesinformers "k8s.io/client-go/informers/certificates"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog/v2"
 	addonclient "open-cluster-management.io/api/client/addon/clientset/versioned"
-	addoninformerv1alpha1 "open-cluster-management.io/api/client/addon/informers/externalversions/addon/v1alpha1"
 	addonlisterv1alpha1 "open-cluster-management.io/api/client/addon/listers/addon/v1alpha1"
 	"open-cluster-management.io/registration/pkg/clientcert"
 	"open-cluster-management.io/registration/pkg/helpers"
+
+	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addoninformerv1alpha1 "open-cluster-management.io/api/client/addon/informers/externalversions/addon/v1alpha1"
 )
+
+type AddOnRegistrationControllerManager interface {
+	AddOnControllerManager
+	GetKnownAddOnNames() []string
+}
 
 // addOnRegistrationController monitors ManagedClusterAddOns on hub and starts addOn registration
 // according to the registrationConfigs read from annotations of ManagedClusterAddOns. Echo addOn
 // may have multiple registrationConfigs. A clientcert.NewClientCertificateController will be started
 // for each of them.
-type addOnRegistrationController struct {
+type addOnRegistrationManager struct {
 	clusterName          string
 	agentName            string
 	kubeconfigData       []byte
@@ -38,7 +43,7 @@ type addOnRegistrationController struct {
 	hubAddOnLister       addonlisterv1alpha1.ManagedClusterAddOnLister
 	hubCSRInformer       certificatesinformers.Interface
 	hubKubeClient        kubernetes.Interface
-	addOnClient          addonclient.Interface
+	hubAddOnClient       addonclient.Interface
 	recorder             events.Recorder
 
 	startRegistrationFunc func(ctx context.Context, config registrationConfig) context.CancelFunc
@@ -49,91 +54,41 @@ type addOnRegistrationController struct {
 }
 
 // NewAddOnRegistrationController returns an instance of addOnRegistrationController
-func NewAddOnRegistrationController(
+func NewAddOnRegistrationControllerManager(
 	clusterName string,
 	agentName string,
 	kubeconfigData []byte,
-	addOnClient addonclient.Interface,
 	managementKubeClient kubernetes.Interface,
 	managedKubeClient kubernetes.Interface,
+	hubAddOnClient addonclient.Interface,
 	hubCSRInformer certificatesinformers.Interface,
 	hubAddOnInformers addoninformerv1alpha1.ManagedClusterAddOnInformer,
 	hubCSRClient kubernetes.Interface,
 	recorder events.Recorder,
-) factory.Controller {
-	c := &addOnRegistrationController{
+) AddOnRegistrationControllerManager {
+	manager := &addOnRegistrationManager{
 		clusterName:              clusterName,
 		agentName:                agentName,
 		kubeconfigData:           kubeconfigData,
 		managementKubeClient:     managementKubeClient,
 		spokeKubeClient:          managedKubeClient,
+		hubAddOnClient:           hubAddOnClient,
 		hubAddOnLister:           hubAddOnInformers.Lister(),
 		hubCSRInformer:           hubCSRInformer,
 		hubKubeClient:            hubCSRClient,
-		addOnClient:              addOnClient,
 		recorder:                 recorder,
 		addOnRegistrationConfigs: map[string]map[string]registrationConfig{},
 	}
 
-	c.startRegistrationFunc = c.startRegistration
+	manager.startRegistrationFunc = manager.startRegistration
 
-	return factory.New().
-		WithInformersQueueKeyFunc(
-			func(obj runtime.Object) string {
-				accessor, _ := meta.Accessor(obj)
-				return accessor.GetName()
-			},
-			hubAddOnInformers.Informer()).
-		WithSync(c.sync).
-		ResyncEvery(10*time.Minute).
-		ToController("AddOnRegistrationController", recorder)
+	return manager
 }
 
-func (c *addOnRegistrationController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
-	queueKey := syncCtx.QueueKey()
-	if queueKey != factory.DefaultQueueKey {
-		// sync a particular addOn
-		return c.syncAddOn(ctx, syncCtx, queueKey)
-	}
-
-	// handle resync
-	errs := []error{}
-	for addOnName := range c.addOnRegistrationConfigs {
-		_, err := c.hubAddOnLister.ManagedClusterAddOns(c.clusterName).Get(addOnName)
-		if err == nil {
-			syncCtx.Queue().Add(addOnName)
-			continue
-		}
-		if errors.IsNotFound(err) {
-			// clean up if the addOn no longer exists
-			err = c.cleanup(ctx, addOnName)
-		}
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return operatorhelpers.NewMultiLineAggregate(errs)
-}
-
-func (c *addOnRegistrationController) syncAddOn(ctx context.Context, syncCtx factory.SyncContext, addOnName string) error {
-	klog.V(4).Infof("Reconciling addOn %q", addOnName)
-
-	addOn, err := c.hubAddOnLister.ManagedClusterAddOns(c.clusterName).Get(addOnName)
-	if errors.IsNotFound(err) {
-		// addon is deleted
-		return c.cleanup(ctx, addOnName)
-	}
-	if err != nil {
-		return err
-	}
-
-	// addon is deleting
-	if !addOn.DeletionTimestamp.IsZero() {
-		return c.cleanup(ctx, addOnName)
-	}
-
-	cachedConfigs := c.addOnRegistrationConfigs[addOnName]
+// RunControllers runs a client certificate controller for each registratin config item of the add-on. The controller will
+// be restarted once the coressponding registratin config item changes.
+func (c *addOnRegistrationManager) RunControllers(ctx context.Context, addOn *addonv1alpha1.ManagedClusterAddOn) error {
+	cachedConfigs := c.addOnRegistrationConfigs[addOn.Name]
 	configs, err := getRegistrationConfigs(addOn)
 	if err != nil {
 		return err
@@ -168,15 +123,41 @@ func (c *addOnRegistrationController) syncAddOn(ctx context.Context, syncCtx fac
 	}
 
 	if len(syncedConfigs) == 0 {
-		delete(c.addOnRegistrationConfigs, addOnName)
+		delete(c.addOnRegistrationConfigs, addOn.Name)
 		return nil
 	}
-	c.addOnRegistrationConfigs[addOnName] = syncedConfigs
+	c.addOnRegistrationConfigs[addOn.Name] = syncedConfigs
 	return nil
 }
 
+// StopControllers cleans both the registration configs and client certificate controllers for the addon
+func (c *addOnRegistrationManager) StopControllers(ctx context.Context, addOnName string) error {
+	errs := []error{}
+	for _, config := range c.addOnRegistrationConfigs[addOnName] {
+		if err := c.stopRegistration(ctx, config); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if err := operatorhelpers.NewMultiLineAggregate(errs); err != nil {
+		return err
+	}
+
+	delete(c.addOnRegistrationConfigs, addOnName)
+	return nil
+}
+
+func (c *addOnRegistrationManager) GetKnownAddOnNames() []string {
+	addOnNames := []string{}
+	for addOnName := range c.addOnRegistrationConfigs {
+		addOnNames = append(addOnNames, addOnName)
+	}
+
+	return addOnNames
+}
+
 // startRegistration starts a client certificate controller with the given config
-func (c *addOnRegistrationController) startRegistration(ctx context.Context, config registrationConfig) context.CancelFunc {
+func (c *addOnRegistrationManager) startRegistration(ctx context.Context, config registrationConfig) context.CancelFunc {
 	ctx, stopFunc := context.WithCancel(ctx)
 
 	// the kubeClient here will be used to generate the hub kubeconfig secret for addon agents, it generates the secret
@@ -245,10 +226,10 @@ func (c *addOnRegistrationController) startRegistration(ctx context.Context, con
 	return stopFunc
 }
 
-func (c *addOnRegistrationController) generateStatusUpdate(clusterName, addonName string) clientcert.StatusUpdateFunc {
+func (c *addOnRegistrationManager) generateStatusUpdate(clusterName, addonName string) clientcert.StatusUpdateFunc {
 	return func(ctx context.Context, cond metav1.Condition) error {
 		_, _, updatedErr := helpers.UpdateManagedClusterAddOnStatus(
-			ctx, c.addOnClient, clusterName, addonName, helpers.UpdateManagedClusterAddOnStatusFn(cond),
+			ctx, c.hubAddOnClient, clusterName, addonName, helpers.UpdateManagedClusterAddOnStatusFn(cond),
 		)
 
 		return updatedErr
@@ -256,7 +237,7 @@ func (c *addOnRegistrationController) generateStatusUpdate(clusterName, addonNam
 }
 
 // stopRegistration stops the client certificate controller for the given config
-func (c *addOnRegistrationController) stopRegistration(ctx context.Context, config registrationConfig) error {
+func (c *addOnRegistrationManager) stopRegistration(ctx context.Context, config registrationConfig) error {
 	if config.stopFunc != nil {
 		config.stopFunc()
 	}
@@ -273,23 +254,6 @@ func (c *addOnRegistrationController) stopRegistration(ctx context.Context, conf
 		return err
 	}
 
-	return nil
-}
-
-// cleanup cleans both the registration configs and client certificate controllers for the addon
-func (c *addOnRegistrationController) cleanup(ctx context.Context, addOnName string) error {
-	errs := []error{}
-	for _, config := range c.addOnRegistrationConfigs[addOnName] {
-		if err := c.stopRegistration(ctx, config); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if err := operatorhelpers.NewMultiLineAggregate(errs); err != nil {
-		return err
-	}
-
-	delete(c.addOnRegistrationConfigs, addOnName)
 	return nil
 }
 

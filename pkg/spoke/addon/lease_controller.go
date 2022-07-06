@@ -7,7 +7,6 @@ import (
 
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	addonclient "open-cluster-management.io/api/client/addon/clientset/versioned"
-	addoninformerv1alpha1 "open-cluster-management.io/api/client/addon/informers/externalversions/addon/v1alpha1"
 	addonlisterv1alpha1 "open-cluster-management.io/api/client/addon/listers/addon/v1alpha1"
 	"open-cluster-management.io/registration/pkg/helpers"
 
@@ -17,11 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/clock"
 	coordv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 const leaseDurationTimes = 5
@@ -32,8 +28,9 @@ var AddOnLeaseControllerLeaseDurationSeconds = 60
 
 // managedClusterAddOnLeaseController udpates managed cluster addons status on the hub cluster through watching the managed
 // cluster status on the managed cluster.
-type managedClusterAddOnLeaseController struct {
+type addOnLeaseController struct {
 	clusterName    string
+	addOnName      string
 	clock          clock.Clock
 	addOnClient    addonclient.Interface
 	addOnLister    addonlisterv1alpha1.ManagedClusterAddOnLister
@@ -42,18 +39,20 @@ type managedClusterAddOnLeaseController struct {
 }
 
 // NewManagedClusterAddOnLeaseController returns an instance of managedClusterAddOnLeaseController
-func NewManagedClusterAddOnLeaseController(clusterName string,
+func NewAddOnLeaseController(clusterName string,
+	addOnName string,
 	addOnClient addonclient.Interface,
-	addOnInformer addoninformerv1alpha1.ManagedClusterAddOnInformer,
+	addOnLister addonlisterv1alpha1.ManagedClusterAddOnLister,
 	hubLeaseClient coordv1client.CoordinationV1Interface,
 	leaseClient coordv1client.CoordinationV1Interface,
 	resyncInterval time.Duration,
 	recorder events.Recorder) factory.Controller {
-	c := &managedClusterAddOnLeaseController{
+	c := &addOnLeaseController{
 		clusterName:    clusterName,
+		addOnName:      addOnName,
 		clock:          clock.RealClock{},
 		addOnClient:    addOnClient,
-		addOnLister:    addOnInformer.Lister(),
+		addOnLister:    addOnLister,
 		hubLeaseClient: hubLeaseClient,
 		leaseClient:    leaseClient,
 	}
@@ -68,27 +67,8 @@ func NewManagedClusterAddOnLeaseController(clusterName string,
 		ToController("ManagedClusterAddOnLeaseController", recorder)
 }
 
-func (c *managedClusterAddOnLeaseController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
-	queueKey := syncCtx.QueueKey()
-	if queueKey == factory.DefaultQueueKey {
-		addOns, err := c.addOnLister.ManagedClusterAddOns(c.clusterName).List(labels.Everything())
-		if err != nil {
-			return err
-		}
-		for _, addOn := range addOns {
-			// enqueue the addon to reconcile
-			syncCtx.Queue().Add(fmt.Sprintf("%s/%s", getAddOnInstallationNamespace(addOn), addOn.Name))
-		}
-		return nil
-	}
-
-	addOnNamespace, addOnName, err := cache.SplitMetaNamespaceKey(queueKey)
-	if err != nil {
-		// queue key is bad format, ignore it.
-		return nil
-	}
-
-	addOn, err := c.addOnLister.ManagedClusterAddOns(c.clusterName).Get(addOnName)
+func (c *addOnLeaseController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
+	addOn, err := c.addOnLister.ManagedClusterAddOns(c.clusterName).Get(c.addOnName)
 	if errors.IsNotFound(err) {
 		// addon is not found, could be deleted, ignore it.
 		return nil
@@ -103,10 +83,10 @@ func (c *managedClusterAddOnLeaseController) sync(ctx context.Context, syncCtx f
 		return nil
 	}
 
-	return c.syncSingle(ctx, addOnNamespace, addOn, syncCtx.Recorder())
+	return c.syncAddOn(ctx, getAddOnInstallationNamespace(addOn), addOn, syncCtx.Recorder())
 }
 
-func (c *managedClusterAddOnLeaseController) syncSingle(ctx context.Context,
+func (c *addOnLeaseController) syncAddOn(ctx context.Context,
 	leaseNamespace string,
 	addOn *addonv1alpha1.ManagedClusterAddOn,
 	recorder events.Recorder) error {
@@ -194,24 +174,4 @@ func (c *managedClusterAddOnLeaseController) syncSingle(ctx context.Context,
 	}
 
 	return nil
-}
-
-func (c *managedClusterAddOnLeaseController) queueKeyFunc(lease runtime.Object) string {
-	accessor, _ := meta.Accessor(lease)
-
-	name := accessor.GetName()
-	// addon lease name should be same with the addon name.
-	addOn, err := c.addOnLister.ManagedClusterAddOns(c.clusterName).Get(name)
-	if err != nil {
-		// failed to get addon from hub, ignore this reconciliation.
-		return ""
-	}
-
-	namespace := accessor.GetNamespace()
-	if namespace != getAddOnInstallationNamespace(addOn) {
-		// the lease namesapce is not same with its addon installation namespace, ignore it.
-		return ""
-	}
-
-	return namespace + "/" + name
 }

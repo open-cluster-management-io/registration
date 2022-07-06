@@ -21,102 +21,18 @@ import (
 
 var now = time.Now()
 
-func TestQueueKeyFunc(t *testing.T) {
-	cases := []struct {
-		name             string
-		addOns           []runtime.Object
-		lease            runtime.Object
-		expectedQueueKey string
-	}{
-		{
-			name:             "no addons",
-			addOns:           []runtime.Object{},
-			lease:            testinghelpers.NewAddOnLease("test", "test", time.Now()),
-			expectedQueueKey: "",
-		},
-		{
-			name: "no install namespace",
-			addOns: []runtime.Object{&addonv1alpha1.ManagedClusterAddOn{
-				ObjectMeta: metav1.ObjectMeta{Namespace: testinghelpers.TestManagedClusterName, Name: "test"},
-			}},
-			lease:            testinghelpers.NewAddOnLease("test", "test", time.Now()),
-			expectedQueueKey: "",
-		},
-		{
-			name: "different install namespace",
-			addOns: []runtime.Object{&addonv1alpha1.ManagedClusterAddOn{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: testinghelpers.TestManagedClusterName,
-					Name:      "test",
-				},
-				Spec: addonv1alpha1.ManagedClusterAddOnSpec{
-					InstallNamespace: "other",
-				},
-			}},
-			lease:            testinghelpers.NewAddOnLease("test", "test", time.Now()),
-			expectedQueueKey: "",
-		},
-		{
-			name: "an addon lease",
-			addOns: []runtime.Object{&addonv1alpha1.ManagedClusterAddOn{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: testinghelpers.TestManagedClusterName,
-					Name:      "test",
-				},
-				Spec: addonv1alpha1.ManagedClusterAddOnSpec{
-					InstallNamespace: "test",
-				},
-			}},
-			lease:            testinghelpers.NewAddOnLease("test", "test", time.Now()),
-			expectedQueueKey: "test/test",
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			addOnClient := addonfake.NewSimpleClientset(c.addOns...)
-			addOnInformerFactory := addoninformers.NewSharedInformerFactory(addOnClient, time.Minute*10)
-			addOnStroe := addOnInformerFactory.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetStore()
-			for _, addOn := range c.addOns {
-				if err := addOnStroe.Add(addOn); err != nil {
-					t.Fatal(err)
-				}
-			}
-
-			ctrl := &managedClusterAddOnLeaseController{
-				clusterName: testinghelpers.TestManagedClusterName,
-				addOnLister: addOnInformerFactory.Addon().V1alpha1().ManagedClusterAddOns().Lister(),
-			}
-			actualQueueKey := ctrl.queueKeyFunc(c.lease)
-			if actualQueueKey != c.expectedQueueKey {
-				t.Errorf("expected queue key %q, but got %q", c.expectedQueueKey, actualQueueKey)
-			}
-		})
-	}
-}
-
 func TestSync(t *testing.T) {
 	cases := []struct {
 		name            string
-		queueKey        string
+		addOnName       string
 		addOns          []runtime.Object
 		hubLeases       []runtime.Object
 		leases          []runtime.Object
 		validateActions func(t *testing.T, ctx *testinghelpers.FakeSyncContext, actions []clienttesting.Action)
 	}{
 		{
-			name:      "bad queue key",
-			queueKey:  "test/test/test",
-			addOns:    []runtime.Object{},
-			hubLeases: []runtime.Object{},
-			leases:    []runtime.Object{},
-			validateActions: func(t *testing.T, ctx *testinghelpers.FakeSyncContext, actions []clienttesting.Action) {
-				testinghelpers.AssertNoActions(t, actions)
-			},
-		},
-		{
 			name:      "no addons",
-			queueKey:  "test/test",
+			addOnName: "test",
 			addOns:    []runtime.Object{},
 			hubLeases: []runtime.Object{},
 			leases:    []runtime.Object{},
@@ -125,8 +41,8 @@ func TestSync(t *testing.T) {
 			},
 		},
 		{
-			name:     "no addon leases",
-			queueKey: "test/test",
+			name:      "no addon leases",
+			addOnName: "test",
 			addOns: []runtime.Object{&addonv1alpha1.ManagedClusterAddOn{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testinghelpers.TestManagedClusterName,
@@ -157,8 +73,8 @@ func TestSync(t *testing.T) {
 			},
 		},
 		{
-			name:     "addon stop to update its lease",
-			queueKey: "test/test",
+			name:      "addon stop to update its lease",
+			addOnName: "test",
 			addOns: []runtime.Object{&addonv1alpha1.ManagedClusterAddOn{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testinghelpers.TestManagedClusterName,
@@ -191,8 +107,8 @@ func TestSync(t *testing.T) {
 			},
 		},
 		{
-			name:     "addon update its lease constantly",
-			queueKey: "test/test",
+			name:      "addon update its lease constantly",
+			addOnName: "test",
 			addOns: []runtime.Object{&addonv1alpha1.ManagedClusterAddOn{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testinghelpers.TestManagedClusterName,
@@ -225,8 +141,8 @@ func TestSync(t *testing.T) {
 			},
 		},
 		{
-			name:     "addon status is not changed",
-			queueKey: "test/test",
+			name:      "addon status is not changed",
+			addOnName: "test",
 			addOns: []runtime.Object{&addonv1alpha1.ManagedClusterAddOn{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testinghelpers.TestManagedClusterName,
@@ -255,38 +171,8 @@ func TestSync(t *testing.T) {
 			},
 		},
 		{
-			name:     "sync all addons",
-			queueKey: "key",
-			addOns: []runtime.Object{
-				&addonv1alpha1.ManagedClusterAddOn{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: testinghelpers.TestManagedClusterName,
-						Name:      "test1",
-					},
-					Spec: addonv1alpha1.ManagedClusterAddOnSpec{
-						InstallNamespace: "test",
-					},
-				},
-				&addonv1alpha1.ManagedClusterAddOn{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: testinghelpers.TestManagedClusterName,
-						Name:      "test2",
-					},
-				},
-			},
-			hubLeases: []runtime.Object{},
-			leases: []runtime.Object{
-				testinghelpers.NewAddOnLease("test1", "test1", now.Add(-5*time.Minute)),
-			},
-			validateActions: func(t *testing.T, ctx *testinghelpers.FakeSyncContext, actions []clienttesting.Action) {
-				if ctx.Queue().Len() != 2 {
-					t.Errorf("expected two addons in queue, but failed")
-				}
-			},
-		},
-		{
-			name:     "addon update its lease constantly (compatibility)",
-			queueKey: "test/test",
+			name:      "addon update its lease constantly (compatibility)",
+			addOnName: "test",
 			addOns: []runtime.Object{&addonv1alpha1.ManagedClusterAddOn{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testinghelpers.TestManagedClusterName,
@@ -314,8 +200,8 @@ func TestSync(t *testing.T) {
 			},
 		},
 		{
-			name:     "addon has customized health check",
-			queueKey: "test/test",
+			name:      "addon has customized health check",
+			addOnName: "test",
 			addOns: []runtime.Object{&addonv1alpha1.ManagedClusterAddOn{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: testinghelpers.TestManagedClusterName,
@@ -350,15 +236,16 @@ func TestSync(t *testing.T) {
 
 			leaseClient := kubefake.NewSimpleClientset(c.leases...)
 
-			ctrl := &managedClusterAddOnLeaseController{
+			ctrl := &addOnLeaseController{
 				clusterName:    testinghelpers.TestManagedClusterName,
+				addOnName:      c.addOnName,
 				clock:          clock.NewFakeClock(time.Now()),
 				hubLeaseClient: hubClient.CoordinationV1(),
 				addOnClient:    addOnClient,
 				addOnLister:    addOnInformerFactory.Addon().V1alpha1().ManagedClusterAddOns().Lister(),
 				leaseClient:    leaseClient.CoordinationV1(),
 			}
-			syncCtx := testinghelpers.NewFakeSyncContext(t, c.queueKey)
+			syncCtx := testinghelpers.NewFakeSyncContext(t, "")
 			syncErr := ctrl.sync(context.TODO(), syncCtx)
 			if syncErr != nil {
 				t.Errorf("unexpected err: %v", syncErr)

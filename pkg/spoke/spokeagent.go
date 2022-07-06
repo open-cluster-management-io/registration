@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	ocmfeature "open-cluster-management.io/api/feature"
 	"os"
 	"path"
 	"time"
+
+	ocmfeature "open-cluster-management.io/api/feature"
 
 	addonclient "open-cluster-management.io/api/client/addon/clientset/versioned"
 	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
@@ -45,10 +46,6 @@ const (
 	// defaultSpokeComponentNamespace is the default namespace in which the spoke agent is deployed
 	defaultSpokeComponentNamespace = "open-cluster-management-agent"
 )
-
-// AddOnLeaseControllerSyncInterval is exposed so that integration tests can crank up the constroller sync speed.
-// TODO if we register the lease informer to the lease controller, we need to increase this time
-var AddOnLeaseControllerSyncInterval = 30 * time.Second
 
 // SpokeAgentOptions holds configuration for spoke cluster agent
 type SpokeAgentOptions struct {
@@ -345,30 +342,38 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		)
 	}
 
-	var addOnLeaseController factory.Controller
-	var addOnRegistrationController factory.Controller
+	var addOnManagementController factory.Controller
 	if features.DefaultSpokeMutableFeatureGate.Enabled(ocmfeature.AddonManagement) {
-		addOnLeaseController = addon.NewManagedClusterAddOnLeaseController(
-			o.ClusterName,
-			addOnClient,
-			addOnInformerFactory.Addon().V1alpha1().ManagedClusterAddOns(),
-			hubKubeClient.CoordinationV1(),
-			spokeKubeClient.CoordinationV1(),
-			AddOnLeaseControllerSyncInterval, //TODO: this interval time should be allowed to change from outside
-			controllerContext.EventRecorder,
-		)
-
-		addOnRegistrationController = addon.NewAddOnRegistrationController(
+		addOnRegistrationControllerManager := addon.NewAddOnRegistrationControllerManager(
 			o.ClusterName,
 			o.AgentName,
 			kubeconfigData,
-			addOnClient,
 			managementKubeClient,
 			spokeKubeClient,
+			addOnClient,
 			hubKubeInformerFactory.Certificates(),
 			addOnInformerFactory.Addon().V1alpha1().ManagedClusterAddOns(),
 			hubKubeClient,
 			controllerContext.EventRecorder,
+		)
+
+		addOnLeaseControllerManager := addon.NewAddOnLeaseControllerManager(
+			o.ClusterName,
+			addOnClient,
+			addOnInformerFactory.Addon().V1alpha1().ManagedClusterAddOns().Lister(),
+			hubKubeClient.CoordinationV1(),
+			managementKubeClient.CoordinationV1(),
+			spokeKubeClient.CoordinationV1(),
+			controllerContext.EventRecorder,
+		)
+
+		addOnManagementController = addon.NewAddOnManagementController(
+			o.ClusterName,
+			addOnInformerFactory.Addon().V1alpha1().ManagedClusterAddOns(),
+			controllerContext.EventRecorder,
+			addOnRegistrationControllerManager.GetKnownAddOnNames,
+			addOnRegistrationControllerManager,
+			addOnLeaseControllerManager,
 		)
 	}
 
@@ -387,8 +392,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		go managedClusterClaimController.Run(ctx, 1)
 	}
 	if features.DefaultSpokeMutableFeatureGate.Enabled(ocmfeature.AddonManagement) {
-		go addOnLeaseController.Run(ctx, 1)
-		go addOnRegistrationController.Run(ctx, 1)
+		go addOnManagementController.Run(ctx, 1)
 	}
 
 	<-ctx.Done()

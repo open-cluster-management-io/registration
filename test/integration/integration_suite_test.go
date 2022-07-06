@@ -27,7 +27,6 @@ import (
 	"open-cluster-management.io/registration/pkg/clientcert"
 	"open-cluster-management.io/registration/pkg/features"
 	"open-cluster-management.io/registration/pkg/hub"
-	"open-cluster-management.io/registration/pkg/spoke"
 	"open-cluster-management.io/registration/pkg/spoke/addon"
 	"open-cluster-management.io/registration/pkg/spoke/managedcluster"
 	"open-cluster-management.io/registration/test/integration/util"
@@ -83,7 +82,7 @@ var _ = ginkgo.BeforeSuite(func(done ginkgo.Done) {
 	hub.ResyncInterval = 5 * time.Second
 
 	// crank up the addon lease sync and udpate speed
-	spoke.AddOnLeaseControllerSyncInterval = 5 * time.Second
+	addon.AddOnLeaseControllerSyncInterval = 5 * time.Second
 	addon.AddOnLeaseControllerLeaseDurationSeconds = 1
 
 	// install cluster CRD and start a local kube-apiserver
