@@ -79,7 +79,7 @@ func (c *csrApprovingController) sync(ctx context.Context, syncCtx factory.SyncC
 	}
 
 	// Authorize whether the current spoke agent has been authorized to renew its csr.
-	allowed, err := c.authorize(ctx, csrInfo)
+	allowed, err := authorize(ctx, c.kubeClient, csrInfo)
 	if err != nil {
 		return err
 	}
@@ -106,17 +106,8 @@ func (c *csrApprovingController) sync(ctx context.Context, syncCtx factory.SyncC
 
 // Using SubjectAccessReview API to check whether a spoke agent has been authorized to renew its csr,
 // a spoke agent is authorized after its spoke cluster is accepted by hub cluster admin.
-func (c *csrApprovingController) authorize(ctx context.Context, csr csrInfo) (bool, error) {
-	sar, err := c.kubeClient.AuthorizationV1().SubjectAccessReviews().Create(ctx, newSAR(csr), metav1.CreateOptions{})
-	if err != nil {
-		return false, err
-	}
-	return sar.Status.Allowed, nil
-}
-
-// newSAR creates SubjectAccessReview from csrInfo.
-func newSAR(csr csrInfo) *authorizationv1.SubjectAccessReview {
-	return &authorizationv1.SubjectAccessReview{
+func authorize(ctx context.Context, kubeClient kubernetes.Interface, csr csrInfo) (bool, error) {
+	sar := &authorizationv1.SubjectAccessReview{
 		Spec: authorizationv1.SubjectAccessReviewSpec{
 			User:   csr.username,
 			UID:    csr.uid,
@@ -130,6 +121,12 @@ func newSAR(csr csrInfo) *authorizationv1.SubjectAccessReview {
 			},
 		},
 	}
+
+	sar, err := kubeClient.AuthorizationV1().SubjectAccessReviews().Create(ctx, sar, metav1.CreateOptions{})
+	if err != nil {
+		return false, err
+	}
+	return sar.Status.Allowed, nil
 }
 
 // To check a renewal managed cluster csr, we check

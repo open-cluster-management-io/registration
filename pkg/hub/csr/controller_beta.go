@@ -70,7 +70,7 @@ func (c *v1beta1CSRApprovingController) sync(ctx context.Context, syncCtx factor
 		return nil
 	}
 
-	allowed, err := c.authorize(ctx, csrInfo)
+	allowed, err := authorize(ctx, c.kubeClient, csrInfo)
 	if err != nil {
 		return err
 	}
@@ -93,14 +93,4 @@ func (c *v1beta1CSRApprovingController) sync(ctx context.Context, syncCtx factor
 	}
 	c.eventRecorder.Eventf("ManagedClusterCSRAutoApproved", "spoke cluster csr %q is auto approved by hub csr controller", csr.Name)
 	return nil
-}
-
-// Using SubjectAccessReview API to check whether a spoke agent has been authorized to renew its csr,
-// a spoke agent is authorized after its spoke cluster is accepted by hub cluster admin.
-func (c *v1beta1CSRApprovingController) authorize(ctx context.Context, csr csrInfo) (bool, error) {
-	sar, err := c.kubeClient.AuthorizationV1().SubjectAccessReviews().Create(ctx, newSAR(csr), metav1.CreateOptions{})
-	if err != nil {
-		return false, err
-	}
-	return sar.Status.Allowed, nil
 }

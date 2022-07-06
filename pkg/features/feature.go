@@ -18,5 +18,8 @@ var (
 func init() {
 	runtime.Must(DefaultSpokeMutableFeatureGate.Add(ocmfeature.DefaultSpokeRegistrationFeatureGates))
 	runtime.Must(DefaultHubMutableFeatureGate.Add(ocmfeature.DefaultHubRegistrationFeatureGates))
+	runtime.Must(DefaultHubMutableFeatureGate.Add(map[featuregate.Feature]featuregate.FeatureSpec{
+		ocmfeature.V1beta1CSRAPICompatibility: {Default: false, PreRelease: featuregate.Alpha},
+	}))
 	runtime.Must(utilfeature.DefaultMutableFeatureGate.Add(ocmfeature.DefaultHubRegistrationFeatureGates))
 }
