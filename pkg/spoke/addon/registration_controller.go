@@ -143,7 +143,9 @@ func (c *addOnRegistrationController) syncAddOn(ctx context.Context, syncCtx fac
 	errs := []error{}
 	for hash, cachedConfig := range cachedConfigs {
 		if _, ok := configs[hash]; ok {
-			continue
+			if !deployOptionChanged(cachedConfig, configs[hash]) {
+				continue
+			}
 		}
 
 		if err := c.stopRegistration(ctx, cachedConfig); err != nil {
@@ -158,8 +160,10 @@ func (c *addOnRegistrationController) syncAddOn(ctx context.Context, syncCtx fac
 	for hash, config := range configs {
 		// keep the unchanged configs
 		if cachedConfig, ok := cachedConfigs[hash]; ok {
-			syncedConfigs[hash] = cachedConfig
-			continue
+			if !deployOptionChanged(cachedConfig, configs[hash]) {
+				syncedConfigs[hash] = cachedConfig
+				continue
+			}
 		}
 
 		// start registration for the new added configs
@@ -173,6 +177,12 @@ func (c *addOnRegistrationController) syncAddOn(ctx context.Context, syncCtx fac
 	}
 	c.addOnRegistrationConfigs[addOnName] = syncedConfigs
 	return nil
+}
+
+func deployOptionChanged(old, new registrationConfig) bool {
+	// only install mode and installation namespace could be changed, so we just compare them
+	return old.installationNamespace != new.installationNamespace ||
+		old.addOnAgentRunningOutsideManagedCluster != new.addOnAgentRunningOutsideManagedCluster
 }
 
 // startRegistration starts a client certificate controller with the given config

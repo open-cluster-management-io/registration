@@ -150,6 +150,29 @@ func TestRegistrationSync(t *testing.T) {
 			},
 		},
 		{
+			name:     "addon install namespace updated",
+			queueKey: addonName,
+			addOn: setAddonInstallNamespace(newManagedClusterAddOn(clusterName, addonName,
+				[]addonv1alpha1.RegistrationConfig{config2}, false), "ns1"),
+			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
+				addonName: {
+					hash(config2): {
+						secretName:            "secret1",
+						installationNamespace: addonName,
+					},
+				},
+			},
+			expectedAddOnRegistrationConfigHashs: map[string][]string{
+				addonName: {hash(config2)},
+			},
+			validateActions: func(t *testing.T, actions, managementActions []clienttesting.Action) {
+				if len(actions) != 1 {
+					t.Errorf("expect 1 actions but got %d", len(actions))
+				}
+				testinghelpers.AssertActions(t, actions, "delete")
+			},
+		},
+		{
 			name:     "addon is deleted",
 			queueKey: addonName,
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
@@ -209,6 +232,59 @@ func TestRegistrationSync(t *testing.T) {
 					t.Errorf("expect 1 management actions but got %d", len(managementActions))
 				}
 				testinghelpers.AssertActions(t, managementActions, "delete")
+			},
+		},
+		{
+			name:                            "deploy mode changes from hosted to default",
+			queueKey:                        addonName,
+			addOn:                           newManagedClusterAddOn(clusterName, addonName, []addonv1alpha1.RegistrationConfig{config2}, true),
+			addonAgentOutsideManagedCluster: true,
+			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
+				addonName: {
+					hash(config2): {
+						secretName:                             "secret1",
+						addOnAgentRunningOutsideManagedCluster: true,
+					},
+				},
+			},
+			expectedAddOnRegistrationConfigHashs: map[string][]string{
+				addonName: {hash(config2)},
+			},
+			validateActions: func(t *testing.T, actions, managementActions []clienttesting.Action) {
+				if len(actions) != 0 {
+					t.Errorf("expect 0 actions but got %d", len(actions))
+				}
+				if len(managementActions) != 1 {
+					t.Errorf("expect 1 management actions but got %d", len(managementActions))
+				}
+				testinghelpers.AssertActions(t, managementActions, "delete")
+			},
+		},
+		{
+			name:                            "deploy mode changes from default to hosted",
+			queueKey:                        addonName,
+			addOn:                           newManagedClusterAddOn(clusterName, addonName, []addonv1alpha1.RegistrationConfig{config2}, false),
+			addonAgentOutsideManagedCluster: false,
+			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
+				addonName: {
+					hash(config2): {
+						secretName: "secret1",
+						// installationNamespace:                  addonName,
+						addOnAgentRunningOutsideManagedCluster: false,
+					},
+				},
+			},
+			expectedAddOnRegistrationConfigHashs: map[string][]string{
+				addonName: {hash(config2)},
+			},
+			validateActions: func(t *testing.T, actions, managementActions []clienttesting.Action) {
+				if len(managementActions) != 0 {
+					t.Errorf("expect 0 actions but got %d", len(managementActions))
+				}
+				if len(actions) != 1 {
+					t.Errorf("expect 1 management actions but got %d", len(actions))
+				}
+				testinghelpers.AssertActions(t, actions, "delete")
 			},
 		},
 		{
@@ -344,6 +420,13 @@ func newManagedClusterAddOn(namespace, name string, registrations []addonv1alpha
 	if hostedMode {
 		addon.SetAnnotations(map[string]string{hostingClusterNameAnnotation: "test"})
 	}
+	return addon
+}
+
+func setAddonInstallNamespace(
+	addon *addonv1alpha1.ManagedClusterAddOn,
+	namespace string) *addonv1alpha1.ManagedClusterAddOn {
+	addon.Spec.InstallNamespace = namespace
 	return addon
 }
 
