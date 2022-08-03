@@ -34,6 +34,11 @@ type registrationConfig struct {
 	addOnAgentRunningOutsideManagedCluster bool
 }
 
+type addonInstallOption struct {
+	InstallationNamespace             string
+	AgentRunningOutsideManagedCluster bool
+}
+
 func (c *registrationConfig) x509Subject(clusterName, agentName string) *pkix.Name {
 	subject := &pkix.Name{
 		CommonName:         c.registration.Subject.User,
@@ -96,19 +101,41 @@ func getRegistrationConfigs(addOn *addonv1alpha1.ManagedClusterAddOn) (map[strin
 			config.secretName = fmt.Sprintf("%s-%s-client-cert", addOn.Name, strings.ReplaceAll(registration.SignerName, "/", "-"))
 		}
 
-		// hash registration configuration and use the hash value as the key of map to make sure each registration configuration
-		// is unique
-		data, err := json.Marshal(registration)
+		// hash registration configuration, install namespace and addOnAgentRunningOutsideManagedCluster. Use the hash
+		// value as the key of map to make sure each registration configuration and addon installation option is unique
+		hash, err := getConfigHash(
+			registration,
+			config.installationNamespace,
+			config.addOnAgentRunningOutsideManagedCluster)
 		if err != nil {
-			return nil, err
+			return configs, err
 		}
-		h := sha256.New()
-		h.Write(data)
-		config.hash = fmt.Sprintf("%x", h.Sum(nil))
+		config.hash = hash
 		configs[config.hash] = config
 	}
 
 	return configs, nil
+}
+
+func getConfigHash(registration addonv1alpha1.RegistrationConfig, installationNamespace string,
+	addOnAgentRunningOutsideManagedCluster bool) (string, error) {
+	data, err := json.Marshal(registration)
+	if err != nil {
+		return "", err
+	}
+
+	installOptionData, err := json.Marshal(addonInstallOption{
+		InstallationNamespace:             installationNamespace,
+		AgentRunningOutsideManagedCluster: addOnAgentRunningOutsideManagedCluster,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	h := sha256.New()
+	h.Write(data)
+	h.Write(installOptionData)
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
 func defaultCommonName(clusterName, agentName, addonName string) string {
