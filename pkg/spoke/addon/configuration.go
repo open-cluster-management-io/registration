@@ -21,9 +21,8 @@ const (
 // registrationConfig contains necessary information for addon registration
 // TODO: Refactor the code here once the registration configuration is available in spec of ManagedClusterAddOn
 type registrationConfig struct {
-	addOnName             string
-	installationNamespace string
-	registration          addonv1alpha1.RegistrationConfig
+	addOnName    string
+	registration addonv1alpha1.RegistrationConfig
 
 	// secretName is the name of secret containing client certificate. If the SignerName is "kubernetes.io/kube-apiserver-client",
 	// the secret name will be "{addon name}-hub-kubeconfig". Otherwise, the secret name will be "{addon name}-{signer name}-client-cert".
@@ -31,12 +30,12 @@ type registrationConfig struct {
 	hash       string
 	stopFunc   context.CancelFunc
 
-	addOnAgentRunningOutsideManagedCluster bool
+	addonInstallOption
 }
 
 type addonInstallOption struct {
-	InstallationNamespace             string
-	AgentRunningOutsideManagedCluster bool
+	InstallationNamespace             string `json:"installationNamespace"`
+	AgentRunningOutsideManagedCluster bool   `json:"agentRunningOutsideManagedCluster"`
 }
 
 func (c *registrationConfig) x509Subject(clusterName, agentName string) *pkix.Name {
@@ -87,10 +86,12 @@ func getRegistrationConfigs(addOn *addonv1alpha1.ManagedClusterAddOn) (map[strin
 
 	for _, registration := range addOn.Status.Registrations {
 		config := registrationConfig{
-			addOnName:                              addOn.Name,
-			addOnAgentRunningOutsideManagedCluster: isAddonRunningOutsideManagedCluster(addOn),
-			installationNamespace:                  getAddOnInstallationNamespace(addOn),
-			registration:                           registration,
+			addOnName: addOn.Name,
+			addonInstallOption: addonInstallOption{
+				AgentRunningOutsideManagedCluster: isAddonRunningOutsideManagedCluster(addOn),
+				InstallationNamespace:             getAddOnInstallationNamespace(addOn),
+			},
+			registration: registration,
 		}
 
 		// set the secret name of client certificate
@@ -105,8 +106,7 @@ func getRegistrationConfigs(addOn *addonv1alpha1.ManagedClusterAddOn) (map[strin
 		// value as the key of map to make sure each registration configuration and addon installation option is unique
 		hash, err := getConfigHash(
 			registration,
-			config.installationNamespace,
-			config.addOnAgentRunningOutsideManagedCluster)
+			config.addonInstallOption)
 		if err != nil {
 			return configs, err
 		}
@@ -117,17 +117,13 @@ func getRegistrationConfigs(addOn *addonv1alpha1.ManagedClusterAddOn) (map[strin
 	return configs, nil
 }
 
-func getConfigHash(registration addonv1alpha1.RegistrationConfig, installationNamespace string,
-	addOnAgentRunningOutsideManagedCluster bool) (string, error) {
+func getConfigHash(registration addonv1alpha1.RegistrationConfig, installOption addonInstallOption) (string, error) {
 	data, err := json.Marshal(registration)
 	if err != nil {
 		return "", err
 	}
 
-	installOptionData, err := json.Marshal(addonInstallOption{
-		InstallationNamespace:             installationNamespace,
-		AgentRunningOutsideManagedCluster: addOnAgentRunningOutsideManagedCluster,
-	})
+	installOptionData, err := json.Marshal(installOption)
 	if err != nil {
 		return "", err
 	}
@@ -135,6 +131,7 @@ func getConfigHash(registration addonv1alpha1.RegistrationConfig, installationNa
 	h := sha256.New()
 	h.Write(data)
 	h.Write(installOptionData)
+
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 

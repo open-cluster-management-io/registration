@@ -131,8 +131,10 @@ func TestRegistrationSync(t *testing.T) {
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addonName: {
 					hash(config1, "", false): {
-						secretName:            "secret1",
-						installationNamespace: addonName,
+						secretName: "secret1",
+						addonInstallOption: addonInstallOption{
+							InstallationNamespace: addonName,
+						},
 					},
 				},
 			},
@@ -154,8 +156,10 @@ func TestRegistrationSync(t *testing.T) {
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addonName: {
 					hash(config2, "", false): {
-						secretName:            "secret1",
-						installationNamespace: addonName,
+						secretName: "secret1",
+						addonInstallOption: addonInstallOption{
+							InstallationNamespace: addonName,
+						},
 					},
 				},
 			},
@@ -175,8 +179,10 @@ func TestRegistrationSync(t *testing.T) {
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addonName: {
 					hash(config1, "", false): {
-						secretName:            "secret1",
-						installationNamespace: addonName,
+						secretName: "secret1",
+						addonInstallOption: addonInstallOption{
+							InstallationNamespace: addonName,
+						},
 					},
 				},
 			},
@@ -213,9 +219,11 @@ func TestRegistrationSync(t *testing.T) {
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addonName: {
 					hash(config1, "", true): {
-						secretName:                             "secret1",
-						installationNamespace:                  addonName,
-						addOnAgentRunningOutsideManagedCluster: true,
+						secretName: "secret1",
+						addonInstallOption: addonInstallOption{
+							InstallationNamespace:             addonName,
+							AgentRunningOutsideManagedCluster: true,
+						},
 					},
 				},
 			},
@@ -241,8 +249,10 @@ func TestRegistrationSync(t *testing.T) {
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addonName: {
 					hash(config2, "", true): {
-						secretName:                             "secret1",
-						addOnAgentRunningOutsideManagedCluster: true,
+						secretName: "secret1",
+						addonInstallOption: addonInstallOption{
+							AgentRunningOutsideManagedCluster: true,
+						},
 					},
 				},
 			},
@@ -268,9 +278,11 @@ func TestRegistrationSync(t *testing.T) {
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addonName: {
 					hash(config2, "", false): {
-						secretName:                             "secret1",
-						installationNamespace:                  addonName,
-						addOnAgentRunningOutsideManagedCluster: false,
+						secretName: "secret1",
+						addonInstallOption: addonInstallOption{
+							InstallationNamespace:             addonName,
+							AgentRunningOutsideManagedCluster: false,
+						},
 					},
 				},
 			},
@@ -293,9 +305,11 @@ func TestRegistrationSync(t *testing.T) {
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addonName: {
 					hash(config1, "", true): {
-						secretName:                             "secret1",
-						installationNamespace:                  addonName,
-						addOnAgentRunningOutsideManagedCluster: true,
+						secretName: "secret1",
+						addonInstallOption: addonInstallOption{
+							InstallationNamespace:             addonName,
+							AgentRunningOutsideManagedCluster: true,
+						},
 					},
 				},
 			},
@@ -314,14 +328,18 @@ func TestRegistrationSync(t *testing.T) {
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addonName: {
 					hash(config1, "", false): {
-						secretName:            "secret1",
-						installationNamespace: addonName,
+						secretName: "secret1",
+						addonInstallOption: addonInstallOption{
+							InstallationNamespace: addonName,
+						},
 					},
 				},
 				"addon2": {
 					hash(config1, "", false): {
-						secretName:            "secret2",
-						installationNamespace: "addon2",
+						secretName: "secret2",
+						addonInstallOption: addonInstallOption{
+							InstallationNamespace: "addon2",
+						},
 					},
 				},
 			},
@@ -393,9 +411,9 @@ func TestRegistrationSync(t *testing.T) {
 						t.Errorf("registration config with hash %q is not found for addOn %q", hash, addOnName)
 
 					}
-					if config.addOnAgentRunningOutsideManagedCluster != c.addonAgentOutsideManagedCluster {
+					if config.AgentRunningOutsideManagedCluster != c.addonAgentOutsideManagedCluster {
 						t.Errorf("expect addon agent running outside managed cluster: %v, but got: %v",
-							c.addonAgentOutsideManagedCluster, config.addOnAgentRunningOutsideManagedCluster)
+							c.addonAgentOutsideManagedCluster, config.AgentRunningOutsideManagedCluster)
 					}
 				}
 			}
@@ -438,6 +456,9 @@ func hash(registration addonv1alpha1.RegistrationConfig, installNamespace string
 		installNamespace = defaultAddOnInstallationNamespace
 	}
 
-	h, _ := getConfigHash(registration, installNamespace, addOnAgentRunningOutsideManagedCluster)
+	h, _ := getConfigHash(registration, addonInstallOption{
+		InstallationNamespace:             installNamespace,
+		AgentRunningOutsideManagedCluster: addOnAgentRunningOutsideManagedCluster,
+	})
 	return h
 }

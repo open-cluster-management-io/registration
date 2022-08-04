@@ -130,13 +130,16 @@ func newRegistrationConfig(addOnName, addOnNamespace, signerName, commonName str
 		},
 	}
 	config := registrationConfig{
-		addOnName:                              addOnName,
-		installationNamespace:                  addOnNamespace,
-		registration:                           registration,
-		addOnAgentRunningOutsideManagedCluster: addOnAgentRunningOutsideManagedCluster,
+		addOnName: addOnName,
+		addonInstallOption: addonInstallOption{
+			InstallationNamespace:             addOnNamespace,
+			AgentRunningOutsideManagedCluster: addOnAgentRunningOutsideManagedCluster,
+		},
+
+		registration: registration,
 	}
 
-	hash, _ := getConfigHash(registration, config.installationNamespace, config.addOnAgentRunningOutsideManagedCluster)
+	hash, _ := getConfigHash(registration, config.addonInstallOption)
 	config.hash = hash
 
 	return config
