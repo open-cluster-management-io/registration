@@ -1198,7 +1198,7 @@ k8s.io/utils/path
 k8s.io/utils/pointer
 k8s.io/utils/strings/slices
 k8s.io/utils/trace
-# open-cluster-management.io/api v0.8.0
+# open-cluster-management.io/api v0.8.1-0.20220816133559-6bd41d8f9c3e
 ## explicit; go 1.18
 open-cluster-management.io/api/addon/v1alpha1
 open-cluster-management.io/api/client/addon/clientset/versioned

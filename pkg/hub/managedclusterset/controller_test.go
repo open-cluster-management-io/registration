@@ -69,6 +69,30 @@ func TestSyncClusterSet(t *testing.T) {
 			},
 		},
 		{
+			name: "sync an exclusive clusterset",
+			existingClusterSet: &clusterv1beta1.ManagedClusterSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mcs1",
+				},
+				Spec: clusterv1beta1.ManagedClusterSetSpec{
+					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
+						SelectorType: clusterv1beta1.ExclusiveClusterSetLabel,
+					},
+				},
+			},
+			existingClusters: []*clusterv1.ManagedCluster{
+				newManagedCluster("cluster1", map[string]string{
+					clusterv1beta1.ClusterSetLabel: "mcs1",
+				}),
+			},
+			expectCondition: metav1.Condition{
+				Type:    clusterv1beta1.ManagedClusterSetConditionEmpty,
+				Status:  metav1.ConditionFalse,
+				Reason:  "ClustersSelected",
+				Message: "1 ManagedClusters selected",
+			},
+		},
+		{
 			name: "sync a legacy clusterset, and no cluster matched",
 			existingClusterSet: &clusterv1beta1.ManagedClusterSet{
 				ObjectMeta: metav1.ObjectMeta{
@@ -77,6 +101,30 @@ func TestSyncClusterSet(t *testing.T) {
 				Spec: clusterv1beta1.ManagedClusterSetSpec{
 					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
 						SelectorType: clusterv1beta1.LegacyClusterSetLabel,
+					},
+				},
+			},
+			existingClusters: []*clusterv1.ManagedCluster{
+				newManagedCluster("cluster1", map[string]string{
+					"vendor": "openShift",
+				}),
+			},
+			expectCondition: metav1.Condition{
+				Type:    clusterv1beta1.ManagedClusterSetConditionEmpty,
+				Status:  metav1.ConditionTrue,
+				Reason:  "NoClusterMatched",
+				Message: "No ManagedCluster selected",
+			},
+		},
+		{
+			name: "sync a exclusive clusterset, and no cluster matched",
+			existingClusterSet: &clusterv1beta1.ManagedClusterSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mcs1",
+				},
+				Spec: clusterv1beta1.ManagedClusterSetSpec{
+					ClusterSelector: clusterv1beta1.ManagedClusterSelector{
+						SelectorType: clusterv1beta1.ExclusiveClusterSetLabel,
 					},
 				},
 			},
