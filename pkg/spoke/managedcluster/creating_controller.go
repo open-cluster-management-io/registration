@@ -53,7 +53,17 @@ func NewManagedClusterCreatingController(
 }
 
 func (c *managedClusterCreatingController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
-	_, err := c.hubClusterClient.ClusterV1().ManagedClusters().Get(ctx, c.clusterName, metav1.GetOptions{})
+	var managedClusterClientConfigs []clusterv1.ClientConfig
+	if len(c.spokeExternalServerURLs) != 0 {
+		for _, serverURL := range c.spokeExternalServerURLs {
+			managedClusterClientConfigs = append(managedClusterClientConfigs, clusterv1.ClientConfig{
+				URL:      serverURL,
+				CABundle: c.spokeCABundle,
+			})
+		}
+	}
+
+	existingCluster, err := c.hubClusterClient.ClusterV1().ManagedClusters().Get(ctx, c.clusterName, metav1.GetOptions{})
 	switch {
 	case errors.IsUnauthorized(err),
 		errors.IsForbidden(err) && strings.Contains(err.Error(), anonymous):
@@ -61,6 +71,13 @@ func (c *managedClusterCreatingController) sync(ctx context.Context, syncCtx fac
 		return nil
 	case errors.IsNotFound(err):
 	case err == nil:
+		if len(existingCluster.Spec.ManagedClusterClientConfigs) == 0 && len(managedClusterClientConfigs) > 0 {
+			clusterCopy := existingCluster.DeepCopy()
+			clusterCopy.Spec.ManagedClusterClientConfigs = managedClusterClientConfigs
+			if _, err := c.hubClusterClient.ClusterV1().ManagedClusters().Update(ctx, clusterCopy, metav1.UpdateOptions{}); err != nil {
+				return fmt.Errorf("unable to update ManagedClusterClientConfigs of managed cluster %q on hub: %w", c.clusterName, err)
+			}
+		}
 		return nil
 	case err != nil:
 		return err
@@ -71,17 +88,7 @@ func (c *managedClusterCreatingController) sync(ctx context.Context, syncCtx fac
 			Name: c.clusterName,
 		},
 	}
-
-	if len(c.spokeExternalServerURLs) != 0 {
-		managedClusterClientConfigs := []clusterv1.ClientConfig{}
-		for _, serverURL := range c.spokeExternalServerURLs {
-			managedClusterClientConfigs = append(managedClusterClientConfigs, clusterv1.ClientConfig{
-				URL:      serverURL,
-				CABundle: c.spokeCABundle,
-			})
-		}
-		managedCluster.Spec.ManagedClusterClientConfigs = managedClusterClientConfigs
-	}
+	managedCluster.Spec.ManagedClusterClientConfigs = managedClusterClientConfigs
 
 	_, err = c.hubClusterClient.ClusterV1().ManagedClusters().Create(ctx, managedCluster, metav1.CreateOptions{})
 	if err != nil {
