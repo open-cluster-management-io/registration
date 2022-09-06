@@ -83,7 +83,8 @@ func (c *managedClusterCreatingController) sync(ctx context.Context, syncCtx fac
 		}
 
 		_, err = c.hubClusterClient.ClusterV1().ManagedClusters().Create(ctx, managedCluster, metav1.CreateOptions{})
-		if err != nil {
+		// ManagedCluster is only allowed created during bootstrap. After bootstrap secret expired, an unauthorized error will be got, skip it
+		if skipUnauthorizedError(err) != nil {
 			return fmt.Errorf("unable to create managed cluster with name %q on hub: %w", c.clusterName, err)
 		}
 		syncCtx.Recorder().Eventf("ManagedClusterCreated", "Managed cluster %q created on hub", c.clusterName)
@@ -120,13 +121,19 @@ func (c *managedClusterCreatingController) sync(ctx context.Context, syncCtx fac
 	// update ManagedClusterClientConfigs in ManagedCluster
 	clusterCopy := existingCluster.DeepCopy()
 	clusterCopy.Spec.ManagedClusterClientConfigs = managedClusterClientConfigs
-	if _, err := c.hubClusterClient.ClusterV1().ManagedClusters().Update(ctx, clusterCopy, metav1.UpdateOptions{}); err != nil {
-		if errors.IsUnauthorized(err) || errors.IsForbidden(err) && strings.Contains(err.Error(), anonymous) {
-			klog.V(4).Infof("unable to update the managed cluster %q in hub: %v", c.clusterName, err)
-			return nil
-		}
+	_, err = c.hubClusterClient.ClusterV1().ManagedClusters().Update(ctx, clusterCopy, metav1.UpdateOptions{})
+	// ManagedClusterClientConfigs in ManagedCluster is only allowed updated during bootstrap. After bootstrap secret expired, an unauthorized error will be got, skip it
+	if skipUnauthorizedError(err) != nil {
 		return fmt.Errorf("unable to update ManagedClusterClientConfigs of managed cluster %q in hub: %w", c.clusterName, err)
 	}
 
 	return nil
+}
+
+func skipUnauthorizedError(err error) error {
+	if errors.IsUnauthorized(err) || errors.IsForbidden(err) {
+		return nil
+	}
+
+	return err
 }
