@@ -54,7 +54,7 @@ func NewManagedClusterCreatingController(
 
 func (c *managedClusterCreatingController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	existingCluster, err := c.hubClusterClient.ClusterV1().ManagedClusters().Get(ctx, c.clusterName, metav1.GetOptions{})
-	if err != nil && (errors.IsUnauthorized(err) || errors.IsForbidden(err) && strings.Contains(err.Error(), anonymous)) {
+	if err != nil && skipUnauthorizedError(err) == nil && strings.Contains(err.Error(), anonymous) {
 		klog.V(4).Infof("unable to get the managed cluster %q from hub: %v", c.clusterName, err)
 		return nil
 	}
@@ -64,7 +64,7 @@ func (c *managedClusterCreatingController) sync(ctx context.Context, syncCtx fac
 	}
 
 	// create ManagedCluster if not found
-	if err != nil && errors.IsNotFound(err) {
+	if errors.IsNotFound(err) {
 		managedCluster := &clusterv1.ManagedCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: c.clusterName,
