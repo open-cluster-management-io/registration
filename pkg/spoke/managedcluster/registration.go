@@ -24,7 +24,9 @@ import (
 )
 
 const (
-	indexByCluster      = "indexByCluster"
+	indexByCluster = "indexByCluster"
+
+	// TODO(qiujian16) expose it if necessary in the future.
 	clusterCSRThreshold = 10
 )
 

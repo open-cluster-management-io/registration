@@ -27,9 +27,10 @@ import (
 
 const (
 	indexByAddon = "indexByAddon"
-)
 
-var AddonCSRThreshold = 10
+	// TODO(qiujian16) expose it if necessary in the future.
+	addonCSRThreshold = 10
+)
 
 // addOnRegistrationController monitors ManagedClusterAddOns on hub and starts addOn registration
 // according to the registrationConfigs read from annotations of ManagedClusterAddOns. Echo addOn
@@ -261,7 +262,7 @@ func (c *addOnRegistrationController) haltCSRCreationFunc(addonName string) func
 			return false
 		}
 
-		if len(items) >= AddonCSRThreshold {
+		if len(items) >= addonCSRThreshold {
 			return true
 		}
 
