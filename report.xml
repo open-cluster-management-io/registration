@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuites tests="76" disabled="0" errors="0" failures="0" time="0.004753001">
+      <testsuite name="E2E suite" package="/Users/xuezhao/go/src/github.com/xuezhaojun/registration/test/e2e" tests="42" disabled="0" skipped="0" errors="0" failures="0" time="0.002510524" timestamp="2022-11-16T14:35:54">
+          <properties>
+              <property name="SuiteSucceeded" value="true"></property>
+              <property name="SuiteHasProgrammaticFocus" value="false"></property>
+              <property name="SpecialSuiteFailureReason" value=""></property>
+              <property name="SuiteLabels" value="[]"></property>
+              <property name="RandomSeed" value="1668580546"></property>
+              <property name="RandomizeAllSpecs" value="false"></property>
+              <property name="LabelFilter" value=""></property>
+              <property name="FocusStrings" value=""></property>
+              <property name="SkipStrings" value=""></property>
+              <property name="FocusFiles" value=""></property>
+              <property name="SkipFiles" value=""></property>
+              <property name="FailOnPending" value="false"></property>
+              <property name="FailFast" value="false"></property>
+              <property name="FlakeAttempts" value="0"></property>
+              <property name="DryRun" value="true"></property>
+              <property name="ParallelTotal" value="1"></property>
+              <property name="OutputInterceptorMode" value=""></property>
+          </properties>
+          <testcase name="[BeforeSuite]" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Loopback registration [development] Should register the hub as a managed cluster" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] ManagedClusterSetBinding ManagedClusterSetBinding should bound a ManagedClusterSetBinding" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Create v1beta2 managedclusterset Create a v1beta2 labelselector based ManagedClusterSet and get/update/delete with v1beta2 client" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Create v1beta2 managedclusterset Create a v1beta2 labelselector based ManagedClusterSet and get/update/delete with v1beta1 client" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Create v1beta2 managedclusterset Create a v1beta2 legacy ManagedClusterSet and get/update/delete with v1beta1 client" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Health Check Checking addon lease on managed cluster to update addon status Should keep addon status to available" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Health Check Checking addon lease on managed cluster to update addon status Should update addon status to unavailable if addon stops to update its lease" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Health Check Checking addon lease on managed cluster to update addon status Should update addon status to unknown if there is no lease for this addon" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Health Check Checking managed cluster status to update addon status Should update addon status to unknow if managed cluster stops to update its lease" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Create v1beta1 managedclusterset Create a v1beta1 labelselector based ManagedClusterSet and get/update/delete with v1beta1 client" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Create v1beta1 managedclusterset Create a v1beta1 labelselector based ManagedClusterSet and get/update/delete with v1beta2 client" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Create v1beta1 managedclusterset Create a v1beta1 legacy ManagedClusterSet and get/update/delete with v1beta2 client" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should have the default LeaseDurationSeconds" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should have the default Clusterset Label (no labels in cluster)" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should have the default Clusterset Label (has labels in cluster)" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should have the default Clusterset Label when clusterset label is a null string" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should have the timeAdded for taints" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should respond bad request when creating a managed cluster with invalid external server URLs" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should forbid the request when creating an accepted managed cluster by unauthorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should accept the request when creating an accepted managed cluster by authorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should accept the request when update managed cluster other field by unauthorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should accept the request when creating a managed cluster with clusterset specified by authorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Creating a managed cluster Should forbid the request when creating a managed cluster with clusterset specified by unauthorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Updating a managed cluster Should not update the LeaseDurationSeconds to zero" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Updating a managed cluster Should not delete the default ClusterSet Label" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Updating a managed cluster Should not update the other ClusterSet Label" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Updating a managed cluster Should respond bad request when updating a managed cluster with invalid external server URLs" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Updating a managed cluster Should forbid the request when updating an unaccepted managed cluster to accepted by unauthorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Updating a managed cluster Should accept the request when updating the clusterset of a managed cluster by authorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedCluster Updating a managed cluster Should forbid the request when updating the clusterset of a managed cluster by unauthorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedClusterSetBinding Creating a ManagedClusterSetBinding should deny the request when creating a ManagedClusterSetBinding with unmatched cluster set name" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedClusterSetBinding Creating a ManagedClusterSetBinding should accept the request when creating a ManagedClusterSetBinding by authorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedClusterSetBinding Creating a ManagedClusterSetBinding should forbid the request when creating a ManagedClusterSetBinding by unauthorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedClusterSetBinding Updating a ManagedClusterSetBinding should deny the request when updating a ManagedClusterSetBinding with a new cluster set" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedClusterSetBinding Updating a ManagedClusterSetBinding should accept the request when updating the label of the ManagedClusterSetBinding by user without binding permission" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedClusterSetBinding Creating a ManagedClusterSetBinding v1beta2 should deny the request when creating a ManagedClusterSetBinding with unmatched cluster set name" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedClusterSetBinding Creating a ManagedClusterSetBinding v1beta2 should accept the request when creating a ManagedClusterSetBinding by authorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedClusterSetBinding Creating a ManagedClusterSetBinding v1beta2 should forbid the request when creating a ManagedClusterSetBinding by unauthorized user" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedClusterSetBinding Updating a ManagedClusterSetBinding should deny the request when updating a ManagedClusterSetBinding with a new cluster set" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Admission webhook ManagedClusterSetBinding Updating a ManagedClusterSetBinding should accept the request when updating the label of the ManagedClusterSetBinding by user without binding permission" classname="E2E suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Taints update check Check the taint to update according to the condition status Should update taints automatically" classname="E2E suite" status="passed" time="0"></testcase>
+      </testsuite>
+      <testsuite name="Integration Suite" package="/Users/xuezhao/go/src/github.com/xuezhaojun/registration/test/integration" tests="34" disabled="0" skipped="0" errors="0" failures="0" time="0.002242477" timestamp="2022-11-16T14:35:59">
+          <properties>
+              <property name="SuiteSucceeded" value="true"></property>
+              <property name="SuiteHasProgrammaticFocus" value="false"></property>
+              <property name="SpecialSuiteFailureReason" value=""></property>
+              <property name="SuiteLabels" value="[]"></property>
+              <property name="RandomSeed" value="1668580546"></property>
+              <property name="RandomizeAllSpecs" value="false"></property>
+              <property name="LabelFilter" value=""></property>
+              <property name="FocusStrings" value=""></property>
+              <property name="SkipStrings" value=""></property>
+              <property name="FocusFiles" value=""></property>
+              <property name="SkipFiles" value=""></property>
+              <property name="FailOnPending" value="false"></property>
+              <property name="FailFast" value="false"></property>
+              <property name="FlakeAttempts" value="0"></property>
+              <property name="DryRun" value="true"></property>
+              <property name="ParallelTotal" value="1"></property>
+              <property name="OutputInterceptorMode" value=""></property>
+          </properties>
+          <testcase name="[BeforeSuite]" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] ManagedCluster Taints Update ManagedCluster taint should be updated automatically" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Disaster Recovery should register addon successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Agent Restart restart agent" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Agent Restart restart agent with a different cluster name" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Lease Resync should update addon status to unavailable after addon lease controller resync" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] DefaultManagedClusterSet should create DefaultManagedClusterSet successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] DefaultManagedClusterSet should recreate DefaultManagedClusterSet successfully after deleted" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Cluster deleting deleting cluster should wait until all manifestworks are deleted" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] GlobalManagedClusterSet should create GlobalManagedClusterSet successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] GlobalManagedClusterSet should reconcile GlobalManagedClusterSet successfully if it changed" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] GlobalManagedClusterSet should not change users labels/annotations in GlobalManagedClusterSet" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] GlobalManagedClusterSet should recreate GlobalManagedClusterSet successfully after deleted" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Collecting Node Resource managed cluster node resource should be collected successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] ManagedClusterSet should create empty cluster set and keep it synced successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] ManagedClusterSet should create legacy cluster set and keep it synced successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] ManagedClusterSet should create labelSelector cluster set and keep it synced successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] ManagedClusterSet should create global cluster set and keep it synced successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Registration should register addon successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Registration should register addon successfully even when the install namespace is not available at the beginning" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Registration should register addon with custom signer successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Registration should addon registraton config updated successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Registration should rotate addon client cert successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Addon Registration should stop addon client cert update if too frequent" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Certificate Rotation Certificate should be automatically rotated when it is about to expire" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Joining Process managedcluster should join successfully" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Agent Recovery agent recovery from invalid bootstrap kubeconfig" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Agent Recovery agent recovery from invalid hub kubeconfig" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Cluster Claim Sync all claims should sync all cluster claims on spoke to status of ManagedCluster" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Cluster Claim Truncate exposed claims should sync truncated cluster claims on spoke to status of ManagedCluster" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Cluster Lease Update managed cluster lease should be updated constantly" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Cluster Lease Update managed cluster available condition should be recovered after its lease update is recovered" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[It] Cluster Lease Update managed cluster available condition should be recovered after the cluster is restored" classname="Integration Suite" status="passed" time="0"></testcase>
+          <testcase name="[AfterSuite]" classname="Integration Suite" status="passed" time="0"></testcase>
+      </testsuite>
+  </testsuites>
