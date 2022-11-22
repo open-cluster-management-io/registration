@@ -2,18 +2,20 @@ package addon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
-	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
@@ -110,23 +112,6 @@ func (c *addOnFeatureDiscoveryController) sync(ctx context.Context, syncCtx fact
 func (c *addOnFeatureDiscoveryController) syncAddOn(ctx context.Context, clusterName, addOnName string) error {
 	klog.V(4).Infof("Reconciling addOn %q", addOnName)
 
-	labels := map[string]string{}
-	addOn, err := c.addOnLister.ManagedClusterAddOns(clusterName).Get(addOnName)
-	switch {
-	case errors.IsNotFound(err):
-		// addon is deleted
-		key := fmt.Sprintf("%s%s-", addOnFeaturePrefix, addOnName)
-		labels[key] = ""
-	case err != nil:
-		return err
-	case !addOn.DeletionTimestamp.IsZero():
-		key := fmt.Sprintf("%s%s-", addOnFeaturePrefix, addOnName)
-		labels[key] = ""
-	default:
-		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOn.Name)
-		labels[key] = getAddOnLabelValue(addOn)
-	}
-
 	cluster, err := c.clusterLister.Get(clusterName)
 	if errors.IsNotFound(err) {
 		// no cluster, it could be deleted
@@ -140,18 +125,56 @@ func (c *addOnFeatureDiscoveryController) syncAddOn(ctx context.Context, cluster
 		return nil
 	}
 
-	// merge labels
-	modified := false
-	cluster = cluster.DeepCopy()
-	resourcemerge.MergeMap(&modified, &cluster.Labels, labels)
+	labels := cluster.Labels
+	if len(labels) == 0 {
+		labels = map[string]string{}
+	}
 
-	// no work if the cluster labels have no change
-	if !modified {
+	// make a copy to check if the cluster labels are changed
+	labelsCopy := map[string]string{}
+	for key, value := range labels {
+		labelsCopy[key] = value
+	}
+
+	addOn, err := c.addOnLister.ManagedClusterAddOns(clusterName).Get(addOnName)
+	switch {
+	case errors.IsNotFound(err):
+		// addon is deleted
+		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
+		if _, exist := labels[key]; exist {
+			delete(labels, key)
+			labels[fmt.Sprintf("%s-", key)] = ""
+		}
+	case err != nil:
+		return err
+	case !addOn.DeletionTimestamp.IsZero():
+		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
+		if _, exist := labels[key]; exist {
+			delete(labels, key)
+			labels[fmt.Sprintf("%s-", key)] = ""
+		}
+	default:
+		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOn.Name)
+		labels[key] = getAddOnLabelValue(addOn)
+	}
+
+	// no work if the labels are not changed
+	if reflect.DeepEqual(labelsCopy, labels) {
 		return nil
 	}
 
-	// otherwise, update cluster
-	_, err = c.clusterClient.ClusterV1().ManagedClusters().Update(ctx, cluster, metav1.UpdateOptions{})
+	patchBytes, err := json.Marshal(map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"labels": labels,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create patch for cluster %s: %w", cluster.Name, err)
+	}
+
+	// patch the cluster labels
+	_, err = c.clusterClient.ClusterV1().ManagedClusters().Patch(ctx, cluster.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+
 	return err
 }
 
@@ -172,43 +195,69 @@ func (c *addOnFeatureDiscoveryController) syncCluster(ctx context.Context, clust
 	}
 
 	// build labels for existing addons
-	addOnLabels := map[string]string{}
+	addOnLabels := cluster.Labels
+	if len(addOnLabels) == 0 {
+		addOnLabels = map[string]string{}
+	}
+
+	// make a copy to check if the cluster labels are changed
+	addOnLabelsCopy := map[string]string{}
+	for key, value := range addOnLabels {
+		addOnLabelsCopy[key] = value
+	}
+
+	newAddonLabels := map[string]string{}
 	addOns, err := c.addOnLister.ManagedClusterAddOns(clusterName).List(labels.Everything())
 	if err != nil {
 		return fmt.Errorf("unable to list addOns of cluster %q: %w", clusterName, err)
 	}
+
 	for _, addOn := range addOns {
+		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOn.Name)
+
 		// addon is deleting
 		if !addOn.DeletionTimestamp.IsZero() {
+			if _, exist := addOnLabels[key]; exist {
+				delete(addOnLabels, key)
+				addOnLabels[fmt.Sprintf("%s-", key)] = ""
+			}
 			continue
 		}
-		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOn.Name)
+
 		addOnLabels[key] = getAddOnLabelValue(addOn)
+		newAddonLabels[key] = getAddOnLabelValue(addOn)
 	}
 
 	// remove addon lable if its corresponding addon no longer exists
-	for key := range cluster.Labels {
+	for key := range addOnLabels {
 		if !strings.HasPrefix(key, addOnFeaturePrefix) {
 			continue
 		}
 
-		if _, ok := addOnLabels[key]; !ok {
+		if _, ok := newAddonLabels[key]; !ok {
+			delete(addOnLabels, key)
 			addOnLabels[fmt.Sprintf("%s-", key)] = ""
 		}
 	}
 
-	// merge labels
-	modified := false
-	cluster = cluster.DeepCopy()
-	resourcemerge.MergeMap(&modified, &cluster.Labels, addOnLabels)
-
-	// no work if the cluster labels have no change
-	if !modified {
+	// no work if the labels are not changed
+	if reflect.DeepEqual(addOnLabelsCopy, addOnLabels) {
 		return nil
 	}
 
-	// otherwise, update cluster
-	_, err = c.clusterClient.ClusterV1().ManagedClusters().Update(ctx, cluster, metav1.UpdateOptions{})
+	// build cluster labels patch
+	patchBytes, err := json.Marshal(map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"labels": addOnLabels,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create patch for cluster %s: %w", cluster.Name, err)
+	}
+
+	// patch the cluster labels
+	_, err = c.clusterClient.ClusterV1().ManagedClusters().Patch(ctx, cluster.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+
 	return err
 }
 
