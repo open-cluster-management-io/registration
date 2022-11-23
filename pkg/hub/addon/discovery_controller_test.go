@@ -387,44 +387,27 @@ func TestDiscoveryController_Sync(t *testing.T) {
 }
 
 func assertPatchAddonLabel(t *testing.T, actionPatch clienttesting.PatchActionImpl, addOnName, addOnStatus string) {
-	var patchObj map[string]map[string]map[string]string
-	if err := json.Unmarshal(actionPatch.Patch, &patchObj); err != nil {
-		t.Errorf("failed to unmarshal patch %s: %v", patchObj, err)
+	var patchClusterObj clusterv1.ManagedCluster
+	if err := json.Unmarshal(actionPatch.Patch, &patchClusterObj); err != nil {
+		t.Errorf("failed to unmarshal patch %s: %v", actionPatch.Patch, err)
 	}
-	metadata, ok := patchObj["metadata"]
-	if !ok {
-		t.Errorf("patch %s doesn't contain metadata field", patchObj)
-	}
-	labels, ok := metadata["labels"]
-	if !ok {
-		t.Errorf("patch %s doesn't contain metadata.labels field", patchObj)
-	}
-
+	labels := patchClusterObj.Labels
 	key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
 	value, ok := labels[key]
 	if !ok {
 		t.Errorf("label %q not found", key)
 	}
-
 	if value != addOnStatus {
 		t.Errorf("expect label value %q but found %q", addOnStatus, value)
 	}
 }
 
 func assertPatchNoAddonLabel(t *testing.T, actionPatch clienttesting.PatchActionImpl, addOnName string) {
-	var patchObj map[string]map[string]map[string]string
-	if err := json.Unmarshal(actionPatch.Patch, &patchObj); err != nil {
-		t.Errorf("failed to unmarshal patch %s: %v", patchObj, err)
+	var patchClusterObj clusterv1.ManagedCluster
+	if err := json.Unmarshal(actionPatch.Patch, &patchClusterObj); err != nil {
+		t.Errorf("failed to unmarshal patch %s: %v", actionPatch.Patch, err)
 	}
-	metadata, ok := patchObj["metadata"]
-	if !ok {
-		t.Errorf("patch %s doesn't contain metadata field", patchObj)
-	}
-	labels, ok := metadata["labels"]
-	if !ok {
-		t.Errorf("patch %s doesn't contain metadata.labels field", patchObj)
-	}
-
+	labels := patchClusterObj.Labels
 	key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
 	if _, ok := labels[key]; ok {
 		t.Errorf("label %q found", key)

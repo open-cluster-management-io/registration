@@ -96,6 +96,10 @@ func (c *taintController) sync(ctx context.Context, syncCtx factory.SyncContext)
 		}
 		// build cluster taints patch
 		patchBytes, err := json.Marshal(map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"uid":             managedCluster.UID,
+				"resourceVersion": managedCluster.ResourceVersion,
+			}, // to ensure they appear in the patch as preconditions
 			"spec": map[string]interface{}{
 				"taints": newTaints,
 			},

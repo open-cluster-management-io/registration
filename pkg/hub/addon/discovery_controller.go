@@ -137,18 +137,16 @@ func (c *addOnFeatureDiscoveryController) syncAddOn(ctx context.Context, cluster
 	}
 
 	addOn, err := c.addOnLister.ManagedClusterAddOns(clusterName).Get(addOnName)
+	key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
 	switch {
 	case errors.IsNotFound(err):
 		// addon is deleted
-		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
 		delete(labels, key)
 	case err != nil:
 		return err
 	case !addOn.DeletionTimestamp.IsZero():
-		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
 		delete(labels, key)
 	default:
-		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOn.Name)
 		labels[key] = getAddOnLabelValue(addOn)
 	}
 
@@ -164,8 +162,10 @@ func (c *addOnFeatureDiscoveryController) syncAddOn(ctx context.Context, cluster
 	// build cluster labels patch
 	patchBytes, err := json.Marshal(map[string]interface{}{
 		"metadata": map[string]interface{}{
-			"labels": labels,
-		},
+			"labels":          labels,
+			"uid":             cluster.UID,
+			"resourceVersion": cluster.ResourceVersion,
+		}, // to ensure they appear in the patch as preconditions
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create patch for cluster %s: %w", cluster.Name, err)
@@ -247,8 +247,10 @@ func (c *addOnFeatureDiscoveryController) syncCluster(ctx context.Context, clust
 	// build cluster labels patch
 	patchBytes, err := json.Marshal(map[string]interface{}{
 		"metadata": map[string]interface{}{
-			"labels": addOnLabels,
-		},
+			"labels":          addOnLabels,
+			"uid":             cluster.UID,
+			"resourceVersion": cluster.ResourceVersion,
+		}, // to ensure they appear in the patch as preconditions
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create patch for cluster %s: %w", cluster.Name, err)
