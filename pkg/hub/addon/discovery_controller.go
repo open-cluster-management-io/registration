@@ -141,18 +141,12 @@ func (c *addOnFeatureDiscoveryController) syncAddOn(ctx context.Context, cluster
 	case errors.IsNotFound(err):
 		// addon is deleted
 		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
-		if _, exist := labels[key]; exist {
-			delete(labels, key)
-			labels[fmt.Sprintf("%s-", key)] = ""
-		}
+		delete(labels, key)
 	case err != nil:
 		return err
 	case !addOn.DeletionTimestamp.IsZero():
 		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
-		if _, exist := labels[key]; exist {
-			delete(labels, key)
-			labels[fmt.Sprintf("%s-", key)] = ""
-		}
+		delete(labels, key)
 	default:
 		key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOn.Name)
 		labels[key] = getAddOnLabelValue(addOn)
@@ -163,6 +157,11 @@ func (c *addOnFeatureDiscoveryController) syncAddOn(ctx context.Context, cluster
 		return nil
 	}
 
+	// if labels is empty, put it to nil, otherwise patch operation will not take effect
+	if len(labels) == 0 {
+		labels = nil
+	}
+	// build cluster labels patch
 	patchBytes, err := json.Marshal(map[string]interface{}{
 		"metadata": map[string]interface{}{
 			"labels": labels,
@@ -217,10 +216,7 @@ func (c *addOnFeatureDiscoveryController) syncCluster(ctx context.Context, clust
 
 		// addon is deleting
 		if !addOn.DeletionTimestamp.IsZero() {
-			if _, exist := addOnLabels[key]; exist {
-				delete(addOnLabels, key)
-				addOnLabels[fmt.Sprintf("%s-", key)] = ""
-			}
+			delete(addOnLabels, key)
 			continue
 		}
 
@@ -236,7 +232,6 @@ func (c *addOnFeatureDiscoveryController) syncCluster(ctx context.Context, clust
 
 		if _, ok := newAddonLabels[key]; !ok {
 			delete(addOnLabels, key)
-			addOnLabels[fmt.Sprintf("%s-", key)] = ""
 		}
 	}
 
@@ -245,6 +240,10 @@ func (c *addOnFeatureDiscoveryController) syncCluster(ctx context.Context, clust
 		return nil
 	}
 
+	// for empty addOnLabels, assign it to nil, otherwise patch operation will take no effect
+	if len(addOnLabels) == 0 {
+		addOnLabels = nil
+	}
 	// build cluster labels patch
 	patchBytes, err := json.Marshal(map[string]interface{}{
 		"metadata": map[string]interface{}{

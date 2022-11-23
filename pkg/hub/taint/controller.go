@@ -90,6 +90,10 @@ func (c *taintController) sync(ctx context.Context, syncCtx factory.SyncContext)
 	}
 
 	if updated {
+		// for empty newTaints, assign it to nil, otherwise patch operation will take no effect
+		if len(newTaints) == 0 {
+			newTaints = nil
+		}
 		// build cluster taints patch
 		patchBytes, err := json.Marshal(map[string]interface{}{
 			"spec": map[string]interface{}{
