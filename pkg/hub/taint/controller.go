@@ -2,12 +2,16 @@ package taint
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	clientset "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	informerv1 "open-cluster-management.io/api/client/cluster/informers/externalversions/cluster/v1"
@@ -86,8 +90,18 @@ func (c *taintController) sync(ctx context.Context, syncCtx factory.SyncContext)
 	}
 
 	if updated {
-		managedCluster.Spec.Taints = newTaints
-		if _, err = c.clusterClient.ClusterV1().ManagedClusters().Update(ctx, managedCluster, metav1.UpdateOptions{}); err != nil {
+		// build cluster taints patch
+		patchBytes, err := json.Marshal(map[string]interface{}{
+			"spec": map[string]interface{}{
+				"taints": newTaints,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create taints update patch for cluster %s: %w", managedClusterName, err)
+		}
+
+		// patch the cluster taints
+		if _, err = c.clusterClient.ClusterV1().ManagedClusters().Patch(ctx, managedClusterName, types.MergePatchType, patchBytes, metav1.PatchOptions{}); err != nil {
 			return err
 		}
 		c.eventRecorder.Eventf("ManagedClusterConditionAvailableUpdated", "Update the original taints to the %+v", newTaints)

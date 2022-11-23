@@ -2,6 +2,7 @@ package taint
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -35,11 +36,15 @@ func TestSyncTaintCluster(t *testing.T) {
 			name:            "ManagedClusterConditionAvailable conditionStatus is False",
 			startingObjects: []runtime.Object{testinghelpers.NewUnAvailableManagedCluster()},
 			validateActions: func(t *testing.T, actions []clienttesting.Action) {
-				testinghelpers.AssertActions(t, actions, "update")
-				managedCluster := (actions[0].(clienttesting.UpdateActionImpl).Object).(*v1.ManagedCluster)
+				testinghelpers.AssertActions(t, actions, "patch")
+				actualPatchAction := actions[0].(clienttesting.PatchActionImpl)
+				var managedClusterPatch v1.ManagedCluster
+				if err := json.Unmarshal(actualPatchAction.Patch, &managedClusterPatch); err != nil {
+					t.Errorf("failed to unmarshal patch %s: %v", actualPatchAction.Patch, err)
+				}
 				taints := []v1.Taint{UnavailableTaint}
-				if !reflect.DeepEqual(managedCluster.Spec.Taints, taints) {
-					t.Errorf("expected taint %#v, but actualTaints: %#v", taints, managedCluster.Spec.Taints)
+				if !reflect.DeepEqual(managedClusterPatch.Spec.Taints, taints) {
+					t.Errorf("expected taint %#v, but actualTaints: %#v", taints, managedClusterPatch.Spec.Taints)
 				}
 			},
 		},
@@ -47,11 +52,15 @@ func TestSyncTaintCluster(t *testing.T) {
 			name:            "There is no ManagedClusterConditionAvailable",
 			startingObjects: []runtime.Object{testinghelpers.NewManagedCluster()},
 			validateActions: func(t *testing.T, actions []clienttesting.Action) {
-				testinghelpers.AssertActions(t, actions, "update")
-				managedCluster := (actions[0].(clienttesting.UpdateActionImpl).Object).(*v1.ManagedCluster)
+				testinghelpers.AssertActions(t, actions, "patch")
+				actualPatchAction := actions[0].(clienttesting.PatchActionImpl)
+				var managedClusterPatch v1.ManagedCluster
+				if err := json.Unmarshal(actualPatchAction.Patch, &managedClusterPatch); err != nil {
+					t.Errorf("failed to unmarshal patch %s: %v", actualPatchAction.Patch, err)
+				}
 				taints := []v1.Taint{UnreachableTaint}
-				if !reflect.DeepEqual(managedCluster.Spec.Taints, taints) {
-					t.Errorf("expected taint %#v, but actualTaints: %#v", taints, managedCluster.Spec.Taints)
+				if !reflect.DeepEqual(managedClusterPatch.Spec.Taints, taints) {
+					t.Errorf("expected taint %#v, but actualTaints: %#v", taints, managedClusterPatch.Spec.Taints)
 				}
 			},
 		},
@@ -59,11 +68,15 @@ func TestSyncTaintCluster(t *testing.T) {
 			name:            "ManagedClusterConditionAvailable conditionStatus is Unknown",
 			startingObjects: []runtime.Object{testinghelpers.NewUnknownManagedCluster()},
 			validateActions: func(t *testing.T, actions []clienttesting.Action) {
-				testinghelpers.AssertActions(t, actions, "update")
-				managedCluster := (actions[0].(clienttesting.UpdateActionImpl).Object).(*v1.ManagedCluster)
+				testinghelpers.AssertActions(t, actions, "patch")
+				var managedClusterPatch v1.ManagedCluster
+				actualPatchAction := actions[0].(clienttesting.PatchActionImpl)
+				if err := json.Unmarshal(actualPatchAction.Patch, &managedClusterPatch); err != nil {
+					t.Errorf("failed to unmarshal patch %s: %v", actualPatchAction.Patch, err)
+				}
 				taints := []v1.Taint{UnreachableTaint}
-				if !reflect.DeepEqual(managedCluster.Spec.Taints, taints) {
-					t.Errorf("expected taint %#v, but actualTaints: %#v", taints, managedCluster.Spec.Taints)
+				if !reflect.DeepEqual(managedClusterPatch.Spec.Taints, taints) {
+					t.Errorf("expected taint %#v, but actualTaints: %#v", taints, managedClusterPatch.Spec.Taints)
 				}
 			},
 		},
