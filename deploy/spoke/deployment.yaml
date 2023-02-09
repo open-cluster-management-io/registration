@@ -32,6 +32,12 @@ spec:
               - ALL
           privileged: false
           runAsNonRoot: true
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 2
+          periodSeconds: 10
         volumeMounts:
         - name: bootstrap-secret
           mountPath: "/spoke/bootstrap"

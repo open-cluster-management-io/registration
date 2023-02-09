@@ -2,32 +2,20 @@ package spoke
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	clusterv1 "open-cluster-management.io/api/cluster/v1"
+	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
-
-	ocmfeature "open-cluster-management.io/api/feature"
-
-	addonclient "open-cluster-management.io/api/client/addon/clientset/versioned"
-	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
-	clusterv1client "open-cluster-management.io/api/client/cluster/clientset/versioned"
-	clusterv1informers "open-cluster-management.io/api/client/cluster/informers/externalversions"
-	"open-cluster-management.io/registration/pkg/clientcert"
-	"open-cluster-management.io/registration/pkg/features"
-	"open-cluster-management.io/registration/pkg/helpers"
-	"open-cluster-management.io/registration/pkg/spoke/addon"
-	"open-cluster-management.io/registration/pkg/spoke/managedcluster"
 
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
-
 	"github.com/spf13/pflag"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
@@ -39,6 +27,18 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
+	addonclient "open-cluster-management.io/api/client/addon/clientset/versioned"
+	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
+	clusterv1client "open-cluster-management.io/api/client/cluster/clientset/versioned"
+	clusterv1informers "open-cluster-management.io/api/client/cluster/informers/externalversions"
+	clusterv1 "open-cluster-management.io/api/cluster/v1"
+	ocmfeature "open-cluster-management.io/api/feature"
+	"open-cluster-management.io/registration/pkg/clientcert"
+	"open-cluster-management.io/registration/pkg/features"
+	"open-cluster-management.io/registration/pkg/helpers"
+	"open-cluster-management.io/registration/pkg/spoke/addon"
+	"open-cluster-management.io/registration/pkg/spoke/managedcluster"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 )
 
 const (
@@ -107,6 +107,8 @@ func NewSpokeAgentOptions() *SpokeAgentOptions {
 // create a valid hub kubeconfig. Once the hub kubeconfig is valid, the
 // temporary controller is stopped and the main controllers are started.
 func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext *controllercmd.ControllerContext) error {
+	ps := newProbeServer(ctx, nil)
+	_ = ps.Start()
 	// create management kube client
 	managementKubeClient, err := kubernetes.NewForConfig(controllerContext.KubeConfig)
 	if err != nil {
@@ -235,11 +237,25 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		if err := wait.PollImmediateInfinite(1*time.Second, o.hasValidHubClientConfig); err != nil {
 			// TODO need run the bootstrap CSR forever to re-establish the client-cert if it is ever lost.
 			stopBootstrap()
+			ps.Stop()
 			return err
 		}
 
 		// stop the clientCertForHubController for bootstrap once the hub client config is ready
 		stopBootstrap()
+	}
+
+	// renew the probe server to check hub and spoke kubeconfig file changing
+	ps.Stop()
+	ps.WaitForStop()
+	configFiles := []string{filepath.Join(o.HubKubeconfigDir, "kubeconfig")}
+	if len(o.SpokeKubeconfig) > 0 {
+		configFiles = append(configFiles, o.SpokeKubeconfig)
+	}
+	ps = newProbeServer(ctx, configFiles)
+	err = ps.Start()
+	if err != nil {
+		return err
 	}
 
 	// create hub clients and shared informer factories from hub kube config
@@ -404,6 +420,81 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 
 	<-ctx.Done()
 	return nil
+}
+
+type probeServer struct {
+	configFiles []string
+	ctx         context.Context
+	cancel      context.CancelFunc
+	closed      chan struct{}
+}
+
+func newProbeServer(ctx context.Context, configFiles []string) *probeServer {
+	s := &probeServer{
+		configFiles: configFiles,
+		closed:      make(chan struct{}),
+	}
+	s.ctx, s.cancel = context.WithCancel(ctx)
+	return s
+}
+
+func (s *probeServer) Start() error {
+	if len(s.configFiles) > 0 {
+		cc, err := helpers.NewConfigChecker("registration-agent", s.configFiles...)
+		if err != nil {
+			return err
+		}
+
+		serveHealthProbes(s.ctx, ":8000", cc.Check, s.closed)
+	} else {
+		serveHealthProbes(s.ctx, ":8000", nil, s.closed)
+	}
+	return nil
+}
+
+func (s *probeServer) Stop() {
+	s.cancel()
+}
+
+func (s *probeServer) WaitForStop() {
+	<-s.closed
+	klog.Info("probe server was stopped")
+}
+
+// serveHealthProbes serves health probes and configchecker.
+func serveHealthProbes(ctx context.Context, healthProbeBindAddress string,
+	configCheck healthz.Checker, closed chan<- struct{}) {
+	mux := http.NewServeMux()
+	handler := &healthz.Handler{Checks: map[string]healthz.Checker{
+		"healthz-ping": healthz.Ping,
+	}}
+	if configCheck != nil {
+		handler.Checks["configz-ping"] = configCheck
+	}
+	mux.Handle("/healthz", http.StripPrefix("/healthz", handler))
+	server := http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		Addr:              healthProbeBindAddress,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
+
+	klog.Infof("heath probes server is running ...")
+	go func() {
+		err := server.ListenAndServe()
+		if err != nil {
+			klog.Errorf("listen and serve error: %v", err)
+			closed <- struct{}{}
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		klog.Infof("heath probes server is shutting down ...")
+		server.Shutdown(ctx)
+	}()
 }
 
 // AddFlags registers flags for Agent
