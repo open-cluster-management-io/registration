@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"time"
@@ -65,6 +64,11 @@ type SpokeAgentOptions struct {
 	MaxCustomClusterClaims      int
 	SpokeKubeconfig             string
 	ClientCertExpirationSeconds int32
+
+	// exposing the spoke informers, so that sharing them with other components which are
+	// integated with registation agent in code level.
+	SpokeKubeInformerFactory    informers.SharedInformerFactory
+	SpokeClusterInformerFactory clusterv1informers.SharedInformerFactory
 }
 
 // NewSpokeAgentOptions returns a SpokeAgentOptions
@@ -126,6 +130,11 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		return err
 	}
 
+	spokeClusterClient, err := clusterv1client.NewForConfig(spokeClientConfig)
+	if err != nil {
+		return err
+	}
+
 	// the hub kubeconfig secret stored in the cluster where the agent pod runs
 	if err := o.Complete(managementKubeClient.CoreV1(), ctx, controllerContext.EventRecorder); err != nil {
 		klog.Fatal(err)
@@ -138,7 +147,8 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	klog.Infof("Cluster name is %q and agent name is %q", o.ClusterName, o.AgentName)
 
 	// create shared informer factory for spoke cluster
-	spokeKubeInformerFactory := informers.NewSharedInformerFactory(spokeKubeClient, 10*time.Minute)
+	o.SpokeKubeInformerFactory = informers.NewSharedInformerFactory(spokeKubeClient, 10*time.Minute)
+	o.SpokeClusterInformerFactory = clusterv1informers.NewSharedInformerFactory(spokeClusterClient, 10*time.Minute)
 
 	// get spoke cluster CA bundle
 	spokeClusterCABundle, err := o.getSpokeClusterCABundle(spokeClientConfig)
@@ -272,8 +282,13 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 			listOptions.LabelSelector = fmt.Sprintf("%s=%s", clusterv1.ClusterNameLabelKey, o.ClusterName)
 		}),
 	)
+
 	addOnInformerFactory := addoninformers.NewSharedInformerFactoryWithOptions(
-		addOnClient, 10*time.Minute, addoninformers.WithNamespace(o.ClusterName))
+		addOnClient,
+		10*time.Minute,
+		addoninformers.WithNamespace(o.ClusterName),
+	)
+
 	// create a cluster informer factory with name field selector because we just need to handle the current spoke cluster
 	hubClusterInformerFactory := clusterv1informers.NewSharedInformerFactoryWithOptions(
 		hubClusterClient,
@@ -336,15 +351,10 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		hubClusterClient,
 		hubClusterInformerFactory.Cluster().V1().ManagedClusters(),
 		spokeKubeClient.Discovery(),
-		spokeKubeInformerFactory.Core().V1().Nodes(),
+		o.SpokeKubeInformerFactory.Core().V1().Nodes(),
 		o.ClusterHealthCheckPeriod,
 		controllerContext.EventRecorder,
 	)
-	spokeClusterClient, err := clusterv1client.NewForConfig(spokeClientConfig)
-	if err != nil {
-		return err
-	}
-	spokeClusterInformerFactory := clusterv1informers.NewSharedInformerFactory(spokeClusterClient, 10*time.Minute)
 
 	var managedClusterClaimController factory.Controller
 	if features.DefaultSpokeMutableFeatureGate.Enabled(ocmfeature.ClusterClaim) {
@@ -354,7 +364,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 			o.MaxCustomClusterClaims,
 			hubClusterClient,
 			hubClusterInformerFactory.Cluster().V1().ManagedClusters(),
-			spokeClusterInformerFactory.Cluster().V1alpha1().ClusterClaims(),
+			o.SpokeClusterInformerFactory.Cluster().V1alpha1().ClusterClaims(),
 			controllerContext.EventRecorder,
 		)
 	}
@@ -388,10 +398,11 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 
 	go hubKubeInformerFactory.Start(ctx.Done())
 	go hubClusterInformerFactory.Start(ctx.Done())
-	go spokeKubeInformerFactory.Start(ctx.Done())
 	go namespacedManagementKubeInformerFactory.Start(ctx.Done())
-	go spokeClusterInformerFactory.Start(ctx.Done())
 	go addOnInformerFactory.Start(ctx.Done())
+
+	go o.SpokeKubeInformerFactory.Start(ctx.Done())
+	go o.SpokeClusterInformerFactory.Start(ctx.Done())
 
 	go clientCertForHubController.Run(ctx, 1)
 	go managedClusterJoiningController.Run(ctx, 1)
@@ -469,7 +480,7 @@ func (o *SpokeAgentOptions) Validate() error {
 // Complete fills in missing values.
 func (o *SpokeAgentOptions) Complete(coreV1Client corev1client.CoreV1Interface, ctx context.Context, recorder events.Recorder) error {
 	// get component namespace of spoke agent
-	nsBytes, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	nsBytes, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	if err != nil {
 		o.ComponentNamespace = defaultSpokeComponentNamespace
 	} else {
@@ -523,7 +534,7 @@ func (o *SpokeAgentOptions) hasValidHubClientConfig() (bool, error) {
 	}
 
 	certPath := path.Join(o.HubKubeconfigDir, clientcert.TLSCertFile)
-	certData, err := ioutil.ReadFile(path.Clean(certPath))
+	certData, err := os.ReadFile(path.Clean(certPath))
 	if err != nil {
 		klog.V(4).Infof("Unable to load TLS cert file %q", certPath)
 		return false, nil
@@ -560,7 +571,7 @@ func (o *SpokeAgentOptions) getOrGenerateClusterAgentNames() (string, string) {
 	// try to load cluster/agent name from tls certification
 	var clusterNameInCert, agentNameInCert string
 	certPath := path.Join(o.HubKubeconfigDir, clientcert.TLSCertFile)
-	certData, certErr := ioutil.ReadFile(path.Clean(certPath))
+	certData, certErr := os.ReadFile(path.Clean(certPath))
 	if certErr == nil {
 		clusterNameInCert, agentNameInCert, _ = managedcluster.GetClusterAgentNamesFromCertificate(certData)
 	}
@@ -572,7 +583,7 @@ func (o *SpokeAgentOptions) getOrGenerateClusterAgentNames() (string, string) {
 
 		// and then load the cluster name from the mounted secret
 		clusterNameFilePath := path.Join(o.HubKubeconfigDir, clientcert.ClusterNameFile)
-		clusterNameBytes, err := ioutil.ReadFile(path.Clean(clusterNameFilePath))
+		clusterNameBytes, err := os.ReadFile(path.Clean(clusterNameFilePath))
 		switch {
 		case len(clusterNameInCert) > 0:
 			// use cluster name loaded from the tls certification
@@ -591,7 +602,7 @@ func (o *SpokeAgentOptions) getOrGenerateClusterAgentNames() (string, string) {
 
 	// try to load agent name from the mounted secret
 	agentNameFilePath := path.Join(o.HubKubeconfigDir, clientcert.AgentNameFile)
-	agentNameBytes, err := ioutil.ReadFile(path.Clean(agentNameFilePath))
+	agentNameBytes, err := os.ReadFile(path.Clean(agentNameFilePath))
 	var agentName string
 	switch {
 	case len(agentNameInCert) > 0:
@@ -619,7 +630,7 @@ func (o *SpokeAgentOptions) getSpokeClusterCABundle(kubeConfig *rest.Config) ([]
 	if kubeConfig.CAData != nil {
 		return kubeConfig.CAData, nil
 	}
-	data, err := ioutil.ReadFile(kubeConfig.CAFile)
+	data, err := os.ReadFile(kubeConfig.CAFile)
 	if err != nil {
 		return nil, err
 	}

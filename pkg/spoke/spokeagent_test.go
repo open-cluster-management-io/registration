@@ -3,7 +3,6 @@ package spoke
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -22,7 +21,7 @@ import (
 func TestComplete(t *testing.T) {
 	// get component namespace
 	var componentNamespace string
-	nsBytes, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	nsBytes, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	if err != nil {
 		componentNamespace = defaultSpokeComponentNamespace
 	} else {
@@ -101,7 +100,7 @@ func TestComplete(t *testing.T) {
 			kubeClient := kubefake.NewSimpleClientset(objects...)
 
 			// create a tmp dir to dump hub kubeconfig
-			dir, err := ioutil.TempDir("", "hub-kubeconfig")
+			dir, err := os.MkdirTemp("", "hub-kubeconfig")
 			if err != nil {
 				t.Error("unable to create a tmp dir")
 			}
@@ -224,7 +223,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestHasValidHubClientConfig(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "testvalidhubclientconfig")
+	tempDir, err := os.MkdirTemp("", "testvalidhubclientconfig")
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -307,7 +306,7 @@ func TestHasValidHubClientConfig(t *testing.T) {
 }
 
 func TestGetOrGenerateClusterAgentNames(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "testgetorgenerateclusteragentnames")
+	tempDir, err := os.MkdirTemp("", "testgetorgenerateclusteragentnames")
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -355,7 +354,7 @@ func TestGetOrGenerateClusterAgentNames(t *testing.T) {
 }
 
 func TestGetSpokeClusterCABundle(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "testgetspokeclustercabundle")
+	tempDir, err := os.MkdirTemp("", "testgetspokeclustercabundle")
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
