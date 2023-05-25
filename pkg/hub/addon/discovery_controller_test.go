@@ -2,6 +2,7 @@ package addon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -100,9 +101,9 @@ func TestDiscoveryController_SyncAddOn(t *testing.T) {
 				},
 			},
 			validateActions: func(t *testing.T, actions []clienttesting.Action) {
-				testinghelpers.AssertActions(t, actions, "update")
-				actual := actions[0].(clienttesting.UpdateActionImpl).Object
-				assertNoAddonLabel(t, actual.(*clusterv1.ManagedCluster), "addon1")
+				testinghelpers.AssertActions(t, actions, "patch")
+				actualPatchAction := actions[0].(clienttesting.PatchActionImpl)
+				assertPatchNoAddonLabel(t, actualPatchAction, "addon1")
 			},
 		},
 		{
@@ -116,6 +117,7 @@ func TestDiscoveryController_SyncAddOn(t *testing.T) {
 			addOn: &addonv1alpha1.ManagedClusterAddOn{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              "addon1",
+					Namespace:         clusterName,
 					DeletionTimestamp: &deleteTime,
 				},
 			},
@@ -136,9 +138,9 @@ func TestDiscoveryController_SyncAddOn(t *testing.T) {
 				},
 			},
 			validateActions: func(t *testing.T, actions []clienttesting.Action) {
-				testinghelpers.AssertActions(t, actions, "update")
-				actual := actions[0].(clienttesting.UpdateActionImpl).Object
-				assertAddonLabel(t, actual.(*clusterv1.ManagedCluster), "addon1", addOnStatusUnreachable)
+				testinghelpers.AssertActions(t, actions, "patch")
+				actualPatchAction := actions[0].(clienttesting.PatchActionImpl)
+				assertPatchAddonLabel(t, actualPatchAction, "addon1", addOnStatusUnreachable)
 			},
 		},
 		{
@@ -159,9 +161,9 @@ func TestDiscoveryController_SyncAddOn(t *testing.T) {
 				},
 			},
 			validateActions: func(t *testing.T, actions []clienttesting.Action) {
-				testinghelpers.AssertActions(t, actions, "update")
-				actual := actions[0].(clienttesting.UpdateActionImpl).Object
-				assertAddonLabel(t, actual.(*clusterv1.ManagedCluster), "addon1", addOnStatusUnreachable)
+				testinghelpers.AssertActions(t, actions, "patch")
+				actualPatchAction := actions[0].(clienttesting.PatchActionImpl)
+				assertPatchAddonLabel(t, actualPatchAction, "addon1", addOnStatusUnreachable)
 			},
 		},
 		{
@@ -257,9 +259,9 @@ func TestDiscoveryController_Sync(t *testing.T) {
 				},
 			},
 			validateActions: func(t *testing.T, actions []clienttesting.Action) {
-				testinghelpers.AssertActions(t, actions, "update")
-				actual := actions[0].(clienttesting.UpdateActionImpl).Object
-				assertAddonLabel(t, actual.(*clusterv1.ManagedCluster), "addon1", addOnStatusUnreachable)
+				testinghelpers.AssertActions(t, actions, "patch")
+				actualPatchAction := actions[0].(clienttesting.PatchActionImpl)
+				assertPatchAddonLabel(t, actualPatchAction, "addon1", addOnStatusUnreachable)
 			},
 		},
 		{
@@ -329,11 +331,11 @@ func TestDiscoveryController_Sync(t *testing.T) {
 				},
 			},
 			validateActions: func(t *testing.T, actions []clienttesting.Action) {
-				testinghelpers.AssertActions(t, actions, "update")
-				actual := actions[0].(clienttesting.UpdateActionImpl).Object
-				assertAddonLabel(t, actual.(*clusterv1.ManagedCluster), "addon1", addOnStatusUnreachable)
-				assertAddonLabel(t, actual.(*clusterv1.ManagedCluster), "addon3", addOnStatusAvailable)
-				assertNoAddonLabel(t, actual.(*clusterv1.ManagedCluster), "addon4")
+				testinghelpers.AssertActions(t, actions, "patch")
+				actualPatchAction := actions[0].(clienttesting.PatchActionImpl)
+				assertPatchAddonLabel(t, actualPatchAction, "addon1", addOnStatusUnreachable)
+				assertPatchAddonLabel(t, actualPatchAction, "addon3", addOnStatusAvailable)
+				assertPatchNoAddonLabel(t, actualPatchAction, "addon4")
 			},
 		},
 	}
@@ -384,21 +386,30 @@ func TestDiscoveryController_Sync(t *testing.T) {
 	}
 }
 
-func assertAddonLabel(t *testing.T, cluster *clusterv1.ManagedCluster, addOnName, addOnStatus string) {
+func assertPatchAddonLabel(t *testing.T, actionPatch clienttesting.PatchActionImpl, addOnName, addOnStatus string) {
+	var patchClusterObj clusterv1.ManagedCluster
+	if err := json.Unmarshal(actionPatch.Patch, &patchClusterObj); err != nil {
+		t.Errorf("failed to unmarshal patch %s: %v", actionPatch.Patch, err)
+	}
+	labels := patchClusterObj.Labels
 	key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
-	value, ok := cluster.Labels[key]
+	value, ok := labels[key]
 	if !ok {
 		t.Errorf("label %q not found", key)
 	}
-
 	if value != addOnStatus {
 		t.Errorf("expect label value %q but found %q", addOnStatus, value)
 	}
 }
 
-func assertNoAddonLabel(t *testing.T, cluster *clusterv1.ManagedCluster, addOnName string) {
+func assertPatchNoAddonLabel(t *testing.T, actionPatch clienttesting.PatchActionImpl, addOnName string) {
+	var patchClusterObj clusterv1.ManagedCluster
+	if err := json.Unmarshal(actionPatch.Patch, &patchClusterObj); err != nil {
+		t.Errorf("failed to unmarshal patch %s: %v", actionPatch.Patch, err)
+	}
+	labels := patchClusterObj.Labels
 	key := fmt.Sprintf("%s%s", addOnFeaturePrefix, addOnName)
-	if _, ok := cluster.Labels[key]; ok {
+	if _, ok := labels[key]; ok {
 		t.Errorf("label %q found", key)
 	}
 }
