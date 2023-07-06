@@ -108,6 +108,7 @@ func NewSpokeAgentOptions() *SpokeAgentOptions {
 // create a valid hub kubeconfig. Once the hub kubeconfig is valid, the
 // temporary controller is stopped and the main controllers are started.
 func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext *controllercmd.ControllerContext) error {
+	logger := klog.FromContext(ctx)
 	// create management kube client
 	managementKubeClient, err := kubernetes.NewForConfig(controllerContext.KubeConfig)
 	if err != nil {
@@ -128,14 +129,15 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 
 	// the hub kubeconfig secret stored in the cluster where the agent pod runs
 	if err := o.Complete(managementKubeClient.CoreV1(), ctx, controllerContext.EventRecorder); err != nil {
-		klog.Fatal(err)
+		logger.Error(err, "Error during Complete")
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
 	if err := o.Validate(); err != nil {
-		klog.Fatal(err)
+		logger.Error(err, "Error during Validating")
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
-
-	klog.Infof("Cluster name is %q and agent name is %q", o.ClusterName, o.AgentName)
+	logger.Info("Cluster and Agent Information", "clusterName", o.ClusterName, "agentName", o.AgentName)
 
 	// create shared informer factory for spoke cluster
 	spokeKubeInformerFactory := informers.NewSharedInformerFactory(spokeKubeClient, 10*time.Minute)
@@ -183,7 +185,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 	go namespacedManagementKubeInformerFactory.Start(ctx.Done())
 
 	// check if there already exists a valid client config for hub
-	ok, err := o.hasValidHubClientConfig()
+	ok, err := o.hasValidHubClientConfig(logger)
 	if err != nil {
 		return err
 	}
@@ -206,7 +208,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 			return err
 		}
 
-		csrControl, err := clientcert.NewCSRControl(bootstrapInformerFactory.Certificates(), bootstrapKubeClient)
+		csrControl, err := clientcert.NewCSRControl(logger, bootstrapInformerFactory.Certificates(), bootstrapKubeClient)
 		if err != nil {
 			return err
 		}
@@ -233,8 +235,10 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		go clientCertForHubController.Run(bootstrapCtx, 1)
 
 		// wait for the hub client config is ready.
-		klog.Info("Waiting for hub client config and managed cluster to be ready")
-		if err := wait.PollImmediateInfinite(1*time.Second, o.hasValidHubClientConfig); err != nil {
+		logger.Info("Waiting for hub client config and managed cluster to be ready")
+		if err := wait.PollImmediateInfinite(1*time.Second, func() (done bool, err error) {
+			return o.hasValidHubClientConfig(logger)
+		}); err != nil {
 			// TODO need run the bootstrap CSR forever to re-establish the client-cert if it is ever lost.
 			stopBootstrap()
 			return err
@@ -292,7 +296,7 @@ func (o *SpokeAgentOptions) RunSpokeAgent(ctx context.Context, controllerContext
 		return err
 	}
 
-	csrControl, err := clientcert.NewCSRControl(hubKubeInformerFactory.Certificates(), hubKubeClient)
+	csrControl, err := clientcert.NewCSRControl(logger, hubKubeInformerFactory.Certificates(), hubKubeClient)
 	if err != nil {
 		return err
 	}
@@ -484,7 +488,7 @@ func (o *SpokeAgentOptions) Complete(coreV1Client corev1client.CoreV1Interface, 
 	}
 
 	// load or generate cluster/agent names
-	o.ClusterName, o.AgentName = o.getOrGenerateClusterAgentNames()
+	o.ClusterName, o.AgentName = o.getOrGenerateClusterAgentNames(klog.FromContext(ctx))
 
 	return nil
 }
@@ -509,23 +513,23 @@ func generateAgentName() string {
 // Normally, KubeconfigFile/TLSKeyFile/TLSCertFile will be created once the bootstrap process
 // completes. Changing the name of the cluster will make the existing hub kubeconfig invalid,
 // because certificate in TLSCertFile is issued to a specific cluster/agent.
-func (o *SpokeAgentOptions) hasValidHubClientConfig() (bool, error) {
+func (o *SpokeAgentOptions) hasValidHubClientConfig(logger klog.Logger) (bool, error) {
 	kubeconfigPath := path.Join(o.HubKubeconfigDir, clientcert.KubeconfigFile)
 	if _, err := os.Stat(kubeconfigPath); os.IsNotExist(err) {
-		klog.V(4).Infof("Kubeconfig file %q not found", kubeconfigPath)
+		logger.V(4).Info("Kubeconfig file not found", "kubeconfigPath", kubeconfigPath)
 		return false, nil
 	}
 
 	keyPath := path.Join(o.HubKubeconfigDir, clientcert.TLSKeyFile)
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-		klog.V(4).Infof("TLS key file %q not found", keyPath)
+		logger.V(4).Info("TLS key file not found", "keyPath", keyPath)
 		return false, nil
 	}
 
 	certPath := path.Join(o.HubKubeconfigDir, clientcert.TLSCertFile)
 	certData, err := ioutil.ReadFile(path.Clean(certPath))
 	if err != nil {
-		klog.V(4).Infof("Unable to load TLS cert file %q", certPath)
+		logger.V(4).Info("Unable to load TLS cert file", "certPath", certPath)
 		return false, nil
 	}
 
@@ -535,13 +539,11 @@ func (o *SpokeAgentOptions) hasValidHubClientConfig() (bool, error) {
 		return false, nil
 	}
 	if clusterName != o.ClusterName || agentName != o.AgentName {
-		klog.V(4).Infof("Certificate in file %q is issued for agent %q instead of %q",
-			certPath, fmt.Sprintf("%s:%s", clusterName, agentName),
-			fmt.Sprintf("%s:%s", o.ClusterName, o.AgentName))
+		logger.V(4).Info("Certificate in file is issued for agent instead of", "certPath", certPath, "issuedForAgent", fmt.Sprintf("%s:%s", clusterName, agentName), "expectedAgent", fmt.Sprintf("%s:%s", o.ClusterName, o.AgentName))
 		return false, nil
 	}
 
-	return clientcert.IsCertificateValid(certData, nil)
+	return clientcert.IsCertificateValid(logger, certData, nil)
 }
 
 // getOrGenerateClusterAgentNames returns cluster name and agent name.
@@ -556,7 +558,7 @@ func (o *SpokeAgentOptions) hasValidHubClientConfig() (bool, error) {
 //  1. Parse agent name from the common name of the certification subject if the certification exists;
 //  2. Fallback to agent name in the mounted secret if it exists;
 //  3. Generate a random agent name then;
-func (o *SpokeAgentOptions) getOrGenerateClusterAgentNames() (string, string) {
+func (o *SpokeAgentOptions) getOrGenerateClusterAgentNames(logger klog.Logger) (string, string) {
 	// try to load cluster/agent name from tls certification
 	var clusterNameInCert, agentNameInCert string
 	certPath := path.Join(o.HubKubeconfigDir, clientcert.TLSCertFile)
@@ -578,7 +580,7 @@ func (o *SpokeAgentOptions) getOrGenerateClusterAgentNames() (string, string) {
 			// use cluster name loaded from the tls certification
 			clusterName = clusterNameInCert
 			if clusterNameInCert != string(clusterNameBytes) {
-				klog.Warningf("Use cluster name %q in certification instead of %q in the mounted secret", clusterNameInCert, string(clusterNameBytes))
+				logger.V(4).Info("Use cluster name in certification instead of in the mounted secret", "clusterNameInCert", clusterNameInCert, "clusterNameInSecret", string(clusterNameBytes))
 			}
 		case err == nil:
 			// use cluster name load from the mounted secret
@@ -598,7 +600,7 @@ func (o *SpokeAgentOptions) getOrGenerateClusterAgentNames() (string, string) {
 		// use agent name loaded from the tls certification
 		agentName = agentNameInCert
 		if agentNameInCert != string(agentNameBytes) {
-			klog.Warningf("Use agent name %q in certification instead of %q in the mounted secret", agentNameInCert, string(agentNameBytes))
+			logger.V(4).Info("Use agent name in certification instead of in the mounted secret", "agentNameInCert", agentNameInCert, "agentNameInSecret", string(agentNameBytes))
 		}
 	case err == nil:
 		// use agent name loaded from the mounted secret

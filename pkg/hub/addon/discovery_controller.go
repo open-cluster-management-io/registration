@@ -108,7 +108,8 @@ func (c *addOnFeatureDiscoveryController) sync(ctx context.Context, syncCtx fact
 }
 
 func (c *addOnFeatureDiscoveryController) syncAddOn(ctx context.Context, clusterName, addOnName string) error {
-	klog.V(4).Infof("Reconciling addOn %q", addOnName)
+	logger := klog.FromContext(ctx)
+	logger.V(4).Info("Reconciling addOn","name", addOnName)
 
 	labels := map[string]string{}
 	addOn, err := c.addOnLister.ManagedClusterAddOns(clusterName).Get(addOnName)

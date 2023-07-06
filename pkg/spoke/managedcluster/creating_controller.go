@@ -49,10 +49,11 @@ func NewManagedClusterCreatingController(
 }
 
 func (c *managedClusterCreatingController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
+	logger:=klog.FromContext(ctx)
 	existingCluster, err := c.hubClusterClient.ClusterV1().ManagedClusters().Get(ctx, c.clusterName, metav1.GetOptions{})
 	// ManagedCluster is only allowed created during bootstrap. After bootstrap secret expired, an unauthorized error will be got, output log at the debug level
 	if err != nil && skipUnauthorizedError(err) == nil {
-		klog.V(4).Infof("unable to get the managed cluster %q from hub: %v", c.clusterName, err)
+		logger.Error(err, "Unable to get the managed cluster from hub", "clusterName", c.clusterName)
 		return nil
 	}
 

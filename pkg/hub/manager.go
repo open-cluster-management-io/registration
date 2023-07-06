@@ -2,9 +2,10 @@ package hub
 
 import (
 	"context"
+	"time"
+
 	certv1 "k8s.io/api/certificates/v1"
 	certv1beta1 "k8s.io/api/certificates/v1beta1"
-	"time"
 
 	ocmfeature "open-cluster-management.io/api/feature"
 
@@ -133,7 +134,7 @@ func (m *HubManagerOptions) RunControllerManager(ctx context.Context, controller
 				csrReconciles,
 				controllerContext.EventRecorder,
 			)
-			klog.Info("Using v1beta1 CSR api to manage spoke client certificate")
+			logger.Info("Using v1beta1 CSR api to manage spoke client certificate")
 		}
 	}
 	if csrController == nil {

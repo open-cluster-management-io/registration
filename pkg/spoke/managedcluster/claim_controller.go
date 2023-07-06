@@ -83,6 +83,7 @@ func (c managedClusterClaimController) sync(ctx context.Context, syncCtx factory
 // the total number of the claims exceeds the value of `cluster-claims-max`.
 func (c managedClusterClaimController) exposeClaims(ctx context.Context, syncCtx factory.SyncContext,
 	managedCluster *clusterv1.ManagedCluster) error {
+	logger:=klog.FromContext(ctx)
 	reservedClaims := []clusterv1.ManagedClusterClaim{}
 	customClaims := []clusterv1.ManagedClusterClaim{}
 
@@ -136,7 +137,7 @@ func (c managedClusterClaimController) exposeClaims(ctx context.Context, syncCtx
 		return fmt.Errorf("unable to update status of managed cluster %q: %w", c.clusterName, err)
 	}
 	if updated {
-		klog.V(4).Infof("The cluster claims in status of managed cluster %q has been updated", c.clusterName)
+		logger.V(4).Info("The cluster claims in status of managed cluster has been updated", "clusterName", c.clusterName)
 	}
 	return nil
 }

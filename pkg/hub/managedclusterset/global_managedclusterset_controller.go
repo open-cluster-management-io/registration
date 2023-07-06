@@ -77,7 +77,8 @@ func NewGlobalManagedClusterSetController(
 }
 
 func (c *globalManagedClusterSetController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
-	klog.V(4).Infof("Reconciling GlobalManagedClusterSet")
+	logger:= klog.FromContext(ctx)
+	logger.V(4).Info("Reconciling GlobalManagedClusterSet")
 	globalClusterSet, err := c.clusterSetLister.Get(GlobalManagedClusterSetName)
 	// if the globalClusterSet not found, apply it.
 	if err != nil {
@@ -100,11 +101,12 @@ func (c *globalManagedClusterSetController) sync(ctx context.Context, syncCtx fa
 
 // applyGlobalClusterSet syncs global cluster set.
 func (c *globalManagedClusterSetController) applyGlobalClusterSet(ctx context.Context, originalGlobalClusterSet *clusterv1beta2.ManagedClusterSet) error {
+	logger:= klog.FromContext(ctx)
 	globalClusterSet := originalGlobalClusterSet.DeepCopy()
 
 	// if the annotation has set to disable, global clusterset controller will not work.
 	if hasAnnotation(globalClusterSet, autoUpdateAnnotation, "false") {
-		klog.V(4).Info("GlobalManagedClusterSetDisabled", "The GlobalManagedClusterSet is disabled by user")
+		logger.V(4).Info("GlobalManagedClusterSetDisabled", "reason", "The GlobalManagedClusterSet is disabled by user")
 		return nil
 	}
 

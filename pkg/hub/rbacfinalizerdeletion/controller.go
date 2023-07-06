@@ -72,6 +72,7 @@ func NewFinalizeController(
 }
 
 func (m *finalizeController) sync(ctx context.Context, controllerContext factory.SyncContext) error {
+	logger:= klog.FromContext(ctx)
 	key := controllerContext.QueueKey()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -97,7 +98,7 @@ func (m *finalizeController) sync(ctx context.Context, controllerContext factory
 	err = m.syncRoleAndRoleBinding(ctx, controllerContext, role, rolebinding, ns, cluster)
 
 	if err != nil {
-		klog.Errorf("Reconcile role/rolebinding %s fails with err: %v", key, err)
+		logger.Error(err, "Reconcile role/rolebinding fails", "key", key)
 	}
 	return err
 }
